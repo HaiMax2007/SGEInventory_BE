@@ -2,8 +2,9 @@ module SGEInventory_BE
 
 go 1.27.3
 
+require github.com/gofiber/fiber/v3 v3.6.1
+
 require (
-	github.com/gofiber/fiber/v3 v3.6.1 // indirect
 	github.com/gofiber/schema v1.8.8 // indirect
 	github.com/gofiber/utils/v2 v2.6.2 // indirect
 	github.com/google/uuid v1.6.0 // indirect

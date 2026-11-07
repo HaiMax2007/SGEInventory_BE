@@ -1,0 +1,77 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: docker/prod/Dockerfile
+    restart: unless-stopped
+    environment:
+      - PORT=3000
+    depends_on:
+      - mysql
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    labels:
+      - "traefik.enable=true"
+      # TODO: ganti sge.example.com dengan domain produksi
+      - "traefik.http.routers.sge.rule=Host(`sge.example.com`)"
+      - "traefik.http.routers.sge.entrypoints=web"
+      - "traefik.http.routers.sge_https.rule=Host(`sge.example.com`)"
+      - "traefik.http.routers.sge_https.entrypoints=websecure"
+      - "traefik.http.routers.sge_https.tls=true"
+      - "traefik.http.routers.sge_https.tls.certresolver=cloudflare"
+      - "traefik.http.services.sge_svc.loadbalancer.server.port=3000"
+    networks:
+      - internal
+      - proxy
+      - shared-api
+
+  mysql:
+    image: mariadb:11.8.2
+    restart: unless-stopped
+    environment:
+      # TODO: ganti CHANGE_ME dengan password produksi
+      MARIADB_ROOT_PASSWORD: CHANGE_ME
+      MARIADB_DATABASE: sgeinventorydb_main
+      MARIADB_USER: db_admin
+      MARIADB_PASSWORD: CHANGE_ME
+    volumes:
+      - mariadb_data:/var/lib/mysql
+      - ./docker/prod/mariadb:/docker-entrypoint-initdb.d
+    networks:
+      - internal
+
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      # TODO: ganti sge.example.com dengan domain produksi
+      - "traefik.http.routers.pma_sge.rule=Host(`vpanel.sge.example.com`)"
+      - "traefik.http.routers.pma_sge.entrypoints=web"
+      - "traefik.http.routers.pma_sge_https.rule=Host(`vpanel.sge.example.com`)"
+      - "traefik.http.routers.pma_sge_https.entrypoints=websecure"
+      - "traefik.http.routers.pma_sge_https.tls=true"
+      - "traefik.http.routers.pma_sge_https.tls.certresolver=cloudflare"
+      - "traefik.http.services.pma_sge_svc.loadbalancer.server.port=80"
+    environment:
+      PMA_HOST: mysql
+    depends_on:
+      - mysql
+    networks:
+      - internal
+      - proxy
+
+volumes:
+  mariadb_data:
+
+networks:
+  internal:
+    driver: bridge
+  proxy:
+    external: true
+  shared-api:
+    external: true
