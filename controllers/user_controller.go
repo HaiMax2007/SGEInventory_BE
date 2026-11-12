@@ -24,7 +24,7 @@ func Register(c fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "Data tidak valid", "error": err.Error()})
 	}
 	if len(req.Password) > maxPasswordBytes {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "Password terlalu panjang (maksimal 72 byte)"})
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "Password terlalu panjang (maksimal 72 karakter)"})
 	}
 
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
@@ -132,7 +132,7 @@ func UpdateUser(c fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "Tidak ada data yang diperbarui"})
 	}
 	if len(req.Password) > maxPasswordBytes {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "Password terlalu panjang (maksimal 72 byte)"})
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "Password terlalu panjang (maksimal 72 karakter)"})
 	}
 
 	var user models.User
