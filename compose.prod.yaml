@@ -12,6 +12,10 @@ services:
       # TODO: samakan dengan MARIADB_PASSWORD di service mysql
       - DB_PASSWORD=CHANGE_ME
       - DB_NAME=sgeinventorydb_main
+      # TODO: ganti dengan string acak minimal 32 karakter (mis. hasil `openssl rand -hex 32`)
+      - JWT_SECRET=CHANGE_ME
+      # TODO: isi dengan domain FE produksi, pisahkan dengan koma
+      - CORS_ORIGINS=https://CHANGE_ME
     ports:
       # HTTPS/TLS tidak ditangani di compose ini; pasang reverse proxy di server
       # atau gunakan Cloudflare di depan port ini.

@@ -11,6 +11,10 @@ services:
       - DB_USER=db_admin
       - DB_PASSWORD=db_admin
       - DB_NAME=sgeinventorydb_main
+      # Secret khusus development (bukan rahasia); produksi wajib memakai nilai lain
+      - JWT_SECRET=Max!JWT_2026#Secure$Token@AuthKey_9xK7pL2mQ8vR5nT3
+      # Alamat FE yang boleh memanggil API, pisahkan dengan koma
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:5173,http://localhost:3001}
     ports:
       - "${API_PORT:-3000}:3000"
     depends_on:
