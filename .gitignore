@@ -3,6 +3,5 @@ docs
 .env
 *.log
 /.claude
-docker/dev/mariadb/*
 docker/prod/mariadb/*
 .env.example
