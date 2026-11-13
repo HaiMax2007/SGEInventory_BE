@@ -149,4 +149,4 @@ SET FOREIGN_KEY_CHECKS = 1;
 INSERT IGNORE INTO users (id, full_name, email, password_hash, contact, role, created_at, updated_at)
 VALUES (1, 'Max', 'marshallmaranda34@gmail.com',
         '$2a$10$S7QOM2wmv727X/rQo.okB.ta0isdJztH63bqwxcHYeTI5.p1tfX6.',
-        '089602160276', 'USER', '2026-11-12 10:01:38', '2026-11-12 10:01:38');
+        '089602160276', 'ADMIN', '2026-11-12 10:01:38', '2026-11-12 10:01:38');
