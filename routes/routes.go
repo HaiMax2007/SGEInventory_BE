@@ -24,6 +24,7 @@ func SetupRoutes(app *fiber.App) {
 
 	auth := api.Group("/auth")
 	auth.Post("/login", loginLimiter, controllers.Login)
+	auth.Post("/logout", middlewares.Protected, controllers.Logout)
 	auth.Get("/me", middlewares.Protected, controllers.Me)
 
 	// User. Register terbuka; sisanya butuh token.
@@ -32,5 +33,13 @@ func SetupRoutes(app *fiber.App) {
 	users.Get("/", middlewares.Protected, middlewares.AdminOnly, controllers.GetUsers)
 	users.Get("/:id", middlewares.Protected, controllers.GetUser)
 	users.Put("/:id", middlewares.Protected, controllers.UpdateUser)
-	users.Delete("/:id", middlewares.Protected, controllers.DeleteUser)
+	users.Delete("/:id", middlewares.AdminOnly, controllers.DeleteUser)
+
+	// Barang. Semua endpoint butuh login; tambah/ubah/hapus hanya admin.
+	items := api.Group("/items", middlewares.Protected)
+	items.Get("/", controllers.GetItems)
+	items.Get("/:id", controllers.GetItem)
+	items.Post("/", middlewares.AdminOnly, controllers.CreateItem)
+	items.Put("/:id", middlewares.AdminOnly, controllers.UpdateItem)
+	items.Delete("/:id", middlewares.AdminOnly, controllers.DeleteItem)
 }
