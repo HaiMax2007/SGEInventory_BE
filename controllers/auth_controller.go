@@ -66,6 +66,14 @@ func Login(c fiber.Ctx) error {
 	})
 }
 
+// Logout: POST /api/auth/logout (butuh header Authorization: Bearer <token>)
+// JWT tidak disimpan di server, jadi tidak ada yang perlu dihapus di sini.
+// FE yang menghapus token dari penyimpanannya (cookie) setelah endpoint ini berhasil.
+// Token yang sempat tersalin masih berlaku sampai kedaluwarsa (24 jam).
+func Logout(c fiber.Ctx) error {
+	return c.JSON(fiber.Map{"message": "Logout berhasil"})
+}
+
 // Me: GET /api/auth/me (data user yang sedang login, butuh token)
 func Me(c fiber.Ctx) error {
 	userID := fiber.Locals[uint](c, "userID") // diisi oleh middlewares.Protected
