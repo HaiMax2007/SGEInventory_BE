@@ -131,9 +131,6 @@ func UpdateUser(c fiber.Ctx) error {
 	if req == (models.UpdateUserRequest{}) {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "Tidak ada data yang diperbarui"})
 	}
-	if len(req.Password) > maxPasswordBytes {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "Password terlalu panjang (maksimal 72 karakter)"})
-	}
 
 	var user models.User
 	if err := config.DB.First(&user, id).Error; err != nil {
@@ -148,13 +145,6 @@ func UpdateUser(c fiber.Ctx) error {
 		FullName: req.FullName,
 		Email:    strings.ToLower(req.Email),
 		Contact:  req.Contact,
-	}
-	if req.Password != "" {
-		hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
-		if err != nil {
-			return serverError(c, err)
-		}
-		updates.Password = string(hashedPassword)
 	}
 
 	if err := config.DB.Model(&user).Updates(updates).Error; err != nil {
