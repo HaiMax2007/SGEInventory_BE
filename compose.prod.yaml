@@ -6,10 +6,10 @@ services:
     restart: unless-stopped
     environment:
       - PORT=3000
-      - DB_HOST=mysql
-      - DB_PORT=3306
+      - DB_HOST=db
+      - DB_PORT=5432
       - DB_USER=db_admin
-      # TODO: samakan dengan MARIADB_PASSWORD di service mysql
+      # TODO: samakan dengan POSTGRES_PASSWORD di service db
       - DB_PASSWORD=CHANGE_ME
       - DB_NAME=sgeinventorydb_main
       # TODO: ganti dengan string acak minimal 32 karakter (mis. hasil `openssl rand -hex 32`)
@@ -21,7 +21,7 @@ services:
       # atau gunakan Cloudflare di depan port ini.
       - "${API_PORT:-3000}:3000"
     depends_on:
-      mysql:
+      db:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:3000/"]
@@ -30,37 +30,41 @@ services:
       retries: 3
       start_period: 15s
 
-  mysql:
-    image: mariadb:11.8.2
+  db:
+    image: postgres:18-alpine
     restart: unless-stopped
     environment:
+      POSTGRES_USER: db_admin
       # TODO: ganti CHANGE_ME dengan password produksi
-      MARIADB_ROOT_PASSWORD: CHANGE_ME
-      MARIADB_DATABASE: sgeinventorydb_main
-      MARIADB_USER: db_admin
-      MARIADB_PASSWORD: CHANGE_ME
+      POSTGRES_PASSWORD: CHANGE_ME
+      POSTGRES_DB: sgeinventorydb_main
     # Port DB sengaja tidak dipublish ke host; hanya bisa diakses antar-container.
     volumes:
-      - mariadb_data:/var/lib/mysql
-      - ./docker/prod/mariadb:/docker-entrypoint-initdb.d
+      - postgres_data:/var/lib/postgresql
+      - ./docker/prod/postgres:/docker-entrypoint-initdb.d
     healthcheck:
-      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      test: ["CMD-SHELL", "pg_isready -U db_admin -d sgeinventorydb_main"]
       interval: 10s
       timeout: 5s
       retries: 10
       start_period: 30s
 
-  phpmyadmin:
-    image: phpmyadmin/phpmyadmin
+  pgadmin:
+    image: dpage/pgadmin4:9
     restart: unless-stopped
     environment:
-      PMA_HOST: mysql
+      # TODO: ganti dengan email & password login pgAdmin produksi
+      PGADMIN_DEFAULT_EMAIL: admin@example.com
+      PGADMIN_DEFAULT_PASSWORD: CHANGE_ME
     ports:
       # Hanya bisa diakses dari server itu sendiri (gunakan SSH tunnel).
-      - "127.0.0.1:${PMA_PORT:-8081}:80"
+      - "127.0.0.1:${PGADMIN_PORT:-8081}:80"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
     depends_on:
-      mysql:
+      db:
         condition: service_healthy
 
 volumes:
-  mariadb_data:
+  postgres_data:
+  pgadmin_data:

@@ -3,5 +3,5 @@ docs
 .env
 *.log
 /.claude
-docker/prod/mariadb/*
+docker/prod/postgres/*
 .env.example

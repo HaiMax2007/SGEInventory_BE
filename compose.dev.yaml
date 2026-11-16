@@ -5,20 +5,20 @@ services:
       dockerfile: docker/dev/Dockerfile
     restart: unless-stopped
     environment:
-      - PORT=3000
-      - DB_HOST=mysql
-      - DB_PORT=3306
-      - DB_USER=db_admin
-      - DB_PASSWORD=db_admin
-      - DB_NAME=sgeinventorydb_main
+      - PORT=${PORT}
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_NAME=${DB_NAME}
       # Secret khusus development (bukan rahasia); produksi wajib memakai nilai lain
-      - JWT_SECRET=Max!JWT_2026#Secure$Token@AuthKey_9xK7pL2mQ8vR5nT3
+      - JWT_SECRET=${JWT_SECRET}
       # Alamat FE yang boleh memanggil API, pisahkan dengan koma
-      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:5173,http://localhost:3001}
+      - CORS_ORIGINS=${CORS_ORIGINS}
     ports:
-      - "${API_PORT:-3000}:3000"
+      - "${PORT}:3000"
     depends_on:
-      mysql:
+      db:
         condition: service_healthy
     volumes:
       - .:/app
@@ -29,39 +29,48 @@ services:
       retries: 5
       start_period: 30s
 
-  mysql:
-    image: mariadb:11.8.2
+  db:
+    image: postgres:18-alpine
     restart: unless-stopped
     environment:
-      MARIADB_ROOT_PASSWORD: root
-      MARIADB_DATABASE: sgeinventorydb_main
-      MARIADB_USER: db_admin
-      MARIADB_PASSWORD: db_admin
-    # 3307 di host agar tidak bentrok dengan MySQL/MariaDB lokal (3306)
+      # POSTGRES_USER otomatis menjadi superuser; tidak ada root password terpisah seperti MariaDB
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
+    # 5433 di host agar tidak bentrok dengan PostgreSQL lokal (5432)
     ports:
-      - "${DB_PORT:-3307}:3306"
+      - "${DB_PORT}:5432"
     volumes:
-      - mariadb_data:/var/lib/mysql
-      - ./docker/dev/mariadb:/docker-entrypoint-initdb.d
+      # Postgres 18 menyimpan data di /var/lib/postgresql/<versi>, jadi yang di-mount folder induknya
+      - postgres_data:/var/lib/postgresql
+      # File .sql di folder ini dijalankan sekali saat volume masih kosong
+      - ./docker/dev/postgres:/docker-entrypoint-initdb.d
     healthcheck:
-      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      test: ["CMD-SHELL", "pg_isready -U db_admin -d sgeinventorydb_main"]
       interval: 10s
       timeout: 5s
       retries: 10
       start_period: 30s
 
-  phpmyadmin:
-    image: phpmyadmin/phpmyadmin
+  pgadmin:
+    image: dpage/pgadmin4:9
     restart: unless-stopped
     environment:
-      PMA_HOST: mysql
-      PMA_USER: db_admin
-      PMA_PASSWORD: db_admin
+      PGADMIN_DEFAULT_EMAIL: admin@example.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+      # Mode desktop: pgAdmin langsung terbuka tanpa halaman login (khusus development)
+      PGADMIN_CONFIG_SERVER_MODE: "False"
+      PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: "False"
     ports:
-      - "${PMA_PORT:-8081}:80"
+      - "${PGADMIN_PORT}:80"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+      # Daftar server yang otomatis muncul di pgAdmin (dibaca saat pertama kali dijalankan)
+      - ./docker/dev/pgadmin/servers.json:/pgadmin4/servers.json:ro
     depends_on:
-      mysql:
+      db:
         condition: service_healthy
 
 volumes:
-  mariadb_data:
+  postgres_data:
+  pgadmin_data:
