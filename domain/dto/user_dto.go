@@ -10,6 +10,7 @@ import (
 // Tidak ada field role: user baru selalu USER.
 type RegisterUserRequest struct {
 	FullName string `json:"fullName" validate:"required,min=3,max=255"`
+	NIM      string `json:"nim" validate:"required,numeric,min=8,max=20"` // angka saja, disimpan sebagai teks
 	Email    string `json:"email" validate:"required,email,max=255"`
 	Password string `json:"password" validate:"required,min=8"`
 	Contact  string `json:"contact" validate:"omitempty,min=8,max=20"`
@@ -35,6 +36,7 @@ type UserListQuery struct {
 type UserResponse struct {
 	ID        uint      `json:"id"`
 	FullName  string    `json:"fullName"`
+	NIM       string    `json:"nim"`
 	Email     string    `json:"email"`
 	Contact   string    `json:"contact"`
 	Role      string    `json:"role"`
@@ -47,6 +49,7 @@ func NewUserResponse(u *entity.User) UserResponse {
 	return UserResponse{
 		ID:        u.ID,
 		FullName:  u.FullName,
+		NIM:       u.NIM,
 		Email:     u.Email,
 		Contact:   u.Contact,
 		Role:      u.Role,

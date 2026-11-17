@@ -36,9 +36,9 @@ func (s *userService) Register(ctx context.Context, req dto.RegisterUserRequest)
 	}
 
 	// NewUser memastikan role selalu USER, tidak bisa dipilih sendiri.
-	user := entity.NewUser(req.FullName, req.Email, string(hashedPassword), req.Contact)
+	user := entity.NewUser(req.FullName, req.NIM, req.Email, string(hashedPassword), req.Contact)
 	if err := s.repo.Create(ctx, user); err != nil {
-		return nil, err // errx.ErrEmailTaken jika email sudah dipakai
+		return nil, err // errx.ErrEmailTaken / errx.ErrNIMTaken jika sudah dipakai
 	}
 
 	res := dto.NewUserResponse(user)

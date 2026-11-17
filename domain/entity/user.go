@@ -15,6 +15,7 @@ import (
 type User struct {
 	ID           uint   `gorm:"primaryKey"`
 	FullName     string `gorm:"size:255;not null"`
+	NIM          string `gorm:"column:nim;size:20;not null;uniqueIndex"`
 	Email        string `gorm:"size:255;not null;uniqueIndex"`
 	PasswordHash string `gorm:"column:password_hash;size:255;not null"`
 	Contact      string `gorm:"size:50"`
@@ -29,9 +30,10 @@ func (User) TableName() string {
 }
 
 // NewUser membuat user baru. Role selalu USER dan email selalu huruf kecil.
-func NewUser(fullName, email, passwordHash, contact string) *User {
+func NewUser(fullName, nim, email, passwordHash, contact string) *User {
 	return &User{
 		FullName:     fullName,
+		NIM:          nim,
 		Email:        strings.ToLower(email),
 		PasswordHash: passwordHash,
 		Contact:      contact,

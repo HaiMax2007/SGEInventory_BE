@@ -130,7 +130,7 @@ Error: `{"message": "..."}`; untuk data tidak valid (400) ditambah `"error"` ber
 | POST | `/api/auth/login` | Semua | Login, membalas token |
 | POST | `/api/auth/logout` | Login | Logout (FE lalu menghapus token-nya sendiri) |
 | GET | `/api/auth/me` | Login | Data user yang sedang login |
-| POST | `/api/users` | Semua | Registrasi user (role otomatis `USER`) |
+| POST | `/api/users` | Semua | Registrasi user (role otomatis `USER`). Wajib: `fullName`, `nim` (8–20 digit angka, unik), `email`, `password` |
 | GET | `/api/users` | Admin | Daftar user. Query: `page`, `limit` (1–100, default 10), `search`, `role` |
 | GET | `/api/users/:id` | Admin / pemilik | Detail user |
 | PUT | `/api/users/:id` | Admin / pemilik | Update parsial: `fullName`, `email`, `password`, `contact` |
@@ -138,7 +138,7 @@ Error: `{"message": "..."}`; untuk data tidak valid (400) ditambah `"error"` ber
 
 ```bash
 curl -X POST localhost:3000/api/users -H "Content-Type: application/json" \
-  -d '{"fullName":"Budi Santoso","email":"budi@mail.com","password":"rahasia123","contact":"08123456789"}'
+  -d '{"fullName":"Budi Santoso","nim":"2210511001","email":"budi@mail.com","password":"rahasia123","contact":"08123456789"}'
 
 curl -X POST localhost:3000/api/auth/login -H "Content-Type: application/json" \
   -d '{"email":"budi@mail.com","password":"rahasia123"}'

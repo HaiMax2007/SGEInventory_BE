@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	"gorm.io/gorm"
 
 	"SGEInventory_BE/domain/contracts"
@@ -24,11 +25,22 @@ func NewUserRepository(db *gorm.DB) contracts.UserRepository {
 func (r *userRepository) Create(ctx context.Context, user *entity.User) error {
 	if err := r.db.WithContext(ctx).Create(user).Error; err != nil {
 		if errors.Is(err, gorm.ErrDuplicatedKey) {
-			return errx.ErrEmailTaken
+			return duplicateUserError(err)
 		}
 		return fmt.Errorf("create user: %w", err)
 	}
 	return nil
+}
+
+// duplicateUserError menentukan kolom unik mana yang bentrok (email atau NIM).
+// Error asli Postgres (*pgconn.PgError) masih terbungkus di dalam err, dan field
+// ConstraintName berisi nama constraint dari 001_schema.sql (uq_users_email / uq_users_nim).
+func duplicateUserError(err error) error {
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) && pgErr.ConstraintName == "uq_users_nim" {
+		return errx.ErrNIMTaken
+	}
+	return errx.ErrEmailTaken
 }
 
 func (r *userRepository) FindByID(ctx context.Context, id uint) (*entity.User, error) {
