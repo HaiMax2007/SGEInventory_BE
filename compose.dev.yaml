@@ -5,6 +5,8 @@ services:
       dockerfile: docker/dev/Dockerfile
     restart: unless-stopped
     environment:
+      # development: app menjalankan Seed (membuat akun awal Max & Raka)
+      - APP_ENV=development
       - PORT=${PORT}
       - DB_HOST=${DB_HOST}
       - DB_PORT=${DB_PORT}
@@ -43,8 +45,7 @@ services:
     volumes:
       # Postgres 18 menyimpan data di /var/lib/postgresql/<versi>, jadi yang di-mount folder induknya
       - postgres_data:/var/lib/postgresql
-      # File .sql di folder ini dijalankan sekali saat volume masih kosong
-      - ./docker/dev/postgres:/docker-entrypoint-initdb.d
+      # Tabel tidak dibuat dari file SQL lagi, melainkan oleh API (database.Migrate) setiap kali start
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U db_admin -d sgeinventorydb_main"]
       interval: 10s

@@ -31,7 +31,18 @@ func main() {
 		log.Fatal(err)
 	}
 
-	// 3. Rakit lapisan aplikasi (dependency injection):
+	// 3. Samakan struktur tabel dengan entity (AutoMigrate),
+	//    lalu isi user awal Max & Raka (khusus development)
+	if err := database.Migrate(db); err != nil {
+		log.Fatal(err)
+	}
+	if cfg.IsDevelopment() {
+		if err := database.Seed(db); err != nil {
+			log.Fatal(err)
+		}
+	}
+
+	// 4. Rakit lapisan aplikasi (dependency injection):
 	//    repository (akses database) → service (aturan bisnis) → handler (HTTP)
 	userRepo := repository.NewUserRepository(db)
 	itemRepo := repository.NewItemRepository(db)
@@ -44,12 +55,12 @@ func main() {
 	itemHandler := item.NewItemHandler(itemSvc)
 	authHandler := auth.NewAuthHandler(authSvc)
 
-	// 4. Buat aplikasi Fiber. Semua error dari handler diubah menjadi JSON oleh ErrorHandler.
+	// 5. Buat aplikasi Fiber. Semua error dari handler diubah menjadi JSON oleh ErrorHandler.
 	app := fiber.New(fiber.Config{
 		ErrorHandler: middlewares.ErrorHandler,
 	})
 
-	// 5. Middleware global: catat request, cegah server mati saat panic,
+	// 6. Middleware global: catat request, cegah server mati saat panic,
 	//    dan izinkan FE (beda port/domain) memanggil API ini (CORS)
 	app.Use(logger.New())
 	app.Use(recover.New())
@@ -58,7 +69,7 @@ func main() {
 		AllowHeaders: []string{"Origin", "Content-Type", "Authorization"},
 	}))
 
-	// 6. Daftarkan route
+	// 7. Daftarkan route
 	app.Get("/", func(c fiber.Ctx) error {
 		return response.Message(c, fiber.StatusOK, "This app is running")
 	})
@@ -69,6 +80,6 @@ func main() {
 	user.RegisterRoutes(api, userHandler, protected)
 	item.RegisterRoutes(api, itemHandler, protected)
 
-	// 7. Jalankan server
+	// 8. Jalankan server
 	log.Fatal(app.Listen(":" + cfg.AppPort))
 }

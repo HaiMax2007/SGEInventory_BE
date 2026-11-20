@@ -3,5 +3,4 @@ docs
 .env
 *.log
 /.claude
-docker/prod/postgres/*
 .env.example

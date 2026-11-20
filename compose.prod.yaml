@@ -5,6 +5,8 @@ services:
       dockerfile: docker/prod/Dockerfile
     restart: unless-stopped
     environment:
+      # production: tabel tetap dibuat otomatis (Migrate), tetapi akun awal (Seed) tidak dibuat
+      - APP_ENV=production
       - PORT=3000
       - DB_HOST=db
       - DB_PORT=5432
@@ -41,7 +43,6 @@ services:
     # Port DB sengaja tidak dipublish ke host; hanya bisa diakses antar-container.
     volumes:
       - postgres_data:/var/lib/postgresql
-      - ./docker/prod/postgres:/docker-entrypoint-initdb.d
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U db_admin -d sgeinventorydb_main"]
       interval: 10s

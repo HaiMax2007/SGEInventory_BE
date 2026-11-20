@@ -34,7 +34,7 @@ func (r *userRepository) Create(ctx context.Context, user *entity.User) error {
 
 // duplicateUserError menentukan kolom unik mana yang bentrok (email atau NIM).
 // Error asli Postgres (*pgconn.PgError) masih terbungkus di dalam err, dan field
-// ConstraintName berisi nama constraint dari 001_schema.sql (uq_users_email / uq_users_nim).
+// ConstraintName berisi nama index unik dari tag entity.User (uq_users_email / uq_users_nim).
 func duplicateUserError(err error) error {
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) && pgErr.ConstraintName == "uq_users_nim" {

@@ -9,12 +9,16 @@ import (
 	"SGEInventory_BE/domain/errx"
 )
 
-// Item adalah cermin tabel items.
+// Item adalah cermin tabel items (dibuat oleh database.Migrate).
+// CHECK menjaga stok tetap masuk akal walau ada yang mengubah data langsung di database.
 type Item struct {
-	ID                uint   `gorm:"primaryKey"`
-	Name              string `gorm:"size:255;not null"`
-	TotalQuantity     int    `gorm:"not null"` // jumlah barang yang dimiliki
-	AvailableQuantity int    `gorm:"not null"` // sisa yang bisa dipinjam
+	ID   uint   `gorm:"primaryKey"`
+	Name string `gorm:"size:255;not null"`
+	// jumlah barang yang dimiliki
+	TotalQuantity int `gorm:"not null;check:chk_items_total_non_negative,total_quantity >= 0"`
+	// sisa yang bisa dipinjam: 0 sampai total. GORM hanya membaca satu "check:" per field,
+	// jadi dua aturan (>= 0 dan <= total) digabung dalam satu CHECK.
+	AvailableQuantity int `gorm:"not null;index:idx_items_available;check:chk_items_available_range,available_quantity >= 0 AND available_quantity <= total_quantity"`
 	CreatedAt         time.Time
 	UpdatedAt         time.Time
 	DeletedAt         gorm.DeletedAt `gorm:"index"` // soft delete

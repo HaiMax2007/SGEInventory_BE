@@ -10,6 +10,7 @@ import (
 )
 
 type Config struct {
+	AppEnv      string // "development" atau "production"
 	AppPort     string
 	DBHost      string
 	DBPort      string
@@ -24,6 +25,8 @@ type Config struct {
 // LoadConfig membaca env lalu memastikan nilai penting sudah benar.
 func LoadConfig() (*Config, error) {
 	cfg := &Config{
+		// Default "production" supaya data awal (Seed) tidak pernah masuk tanpa sengaja.
+		AppEnv:      getEnv("APP_ENV", "production"),
 		AppPort:     getEnv("PORT", "3000"),
 		DBHost:      os.Getenv("DB_HOST"),
 		DBPort:      os.Getenv("DB_PORT"),
@@ -39,6 +42,11 @@ func LoadConfig() (*Config, error) {
 		return nil, errors.New("JWT_SECRET wajib diisi, minimal 32 karakter")
 	}
 	return cfg, nil
+}
+
+// IsDevelopment bernilai true jika APP_ENV=development (diset di compose.dev.yaml).
+func (c *Config) IsDevelopment() bool {
+	return c.AppEnv == "development"
 }
 
 // DSN adalah alamat koneksi PostgreSQL untuk GORM, formatnya "kunci=nilai" dipisah spasi.

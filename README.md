@@ -36,7 +36,7 @@ Mengikuti pola Clean Architecture (handler → service → repository).
 
 ```
 cmd/app/main.go                 titik awal: baca config → sambung DB → rakit repository/service/handler → routes
-cmd/migrate, cmd/seed           (kosong) untuk program migrasi & seeder nanti
+cmd/migrate, cmd/seed           (kosong) cadangan jika nanti migrasi/seed mau dijalankan sebagai program terpisah
 domain/                         inti aplikasi, tidak tahu soal HTTP
   entity/                       struct tabel database + aturan bisnisnya (User, Item)
   dto/                          bentuk data request/response JSON (+ isi token JWT)
@@ -50,6 +50,8 @@ internal/
     service.go                  aturan bisnis (hash password, cek stok, buat token, ...)
   config/config.go              membaca env
   infra/database/postgres.go    membuka koneksi GORM ke PostgreSQL
+  infra/database/migrate.go     AutoMigrate: membuat/menyesuaikan tabel dari struct entity setiap app start
+  infra/database/seed.go        user awal Max (ADMIN) & Raka (USER), hanya saat APP_ENV=development
   infra/repository/             query GORM (satu file per tabel)
   middlewares/auth.go           Protected (cek token) & AdminOnly (cek role)
   middlewares/error_handler.go  mengubah semua error menjadi JSON + status HTTP
@@ -147,8 +149,8 @@ curl localhost:3000/api/auth/me -H "Authorization: Bearer <token>"
 ```
 
 User tidak terikat lembaga; lembaga dipilih per pengajuan peminjaman (`borrowings.lembaga_id`).
-Data awal development hanya akun admin di akhir `docker/dev/postgres/001_schema.sql`; data lain tambahkan
-sendiri lewat API atau pgAdmin.
+Data awal development (dibuat otomatis oleh `internal/infra/database/seed.go` saat `APP_ENV=development`):
+Max (ADMIN, NIM `00000001`) dan Raka (USER, NIM `00000002`). Data lain tambahkan sendiri lewat API atau pgAdmin.
 
 Catatan:
 - Admin tidak bisa dibuat lewat API. Daftar seperti biasa, lalu ubah lewat pgAdmin (Query Tool):
@@ -186,14 +188,28 @@ Contoh data barang:
   jumlah yang sedang dipinjam (409).
 - Barang yang masih dipinjam tidak bisa dihapus (409).
 
+## Struktur tabel (AutoMigrate)
+
+Tabel tidak dibuat dari file SQL. Setiap kali API start, `database.Migrate` (GORM AutoMigrate) menyamakan
+database dengan struct di `domain/entity` (tag `gorm:"..."`: ukuran kolom, `not null`, index unik, `check`).
+Lalu, khusus `APP_ENV=development` (diset di `compose.dev.yaml`), `database.Seed` membuat user awal jika belum ada.
+
+- Tambah kolom/tabel: ubah atau buat struct entity (tabel baru: daftarkan di `migrate.go`), lalu simpan — Air
+  me-restart API dan AutoMigrate menambahkannya.
+- AutoMigrate **tidak** menghapus atau mengganti nama kolom. Kolom yang dihapus dari struct tetap ada di database
+  sampai dihapus manual (`ALTER TABLE ... DROP COLUMN ...`) atau database direset.
+
 ## Reset database
 
-Script di `docker/dev/postgres/*.sql` (skema) hanya otomatis dijalankan saat volume database masih kosong:
+Menghapus semua data; tabel dan user awal dibuat ulang otomatis saat API start:
 
 ```bash
-docker compose -f compose.dev.yaml down -v
-docker compose -f compose.dev.yaml up --build
+docker compose -f compose.dev.yaml down
+docker volume rm sgeinventory_be_postgres_data
+docker compose -f compose.dev.yaml up --build -d
 ```
+
+(`down -v` juga bisa, tetapi ikut menghapus volume pgAdmin sehingga password server di pgAdmin perlu diisi lagi.)
 
 Desain database: [docs/database-design.md](docs/database-design.md).
 
@@ -209,3 +225,5 @@ Ganti semua `CHANGE_ME` di `compose.prod.yaml` terlebih dahulu: password databas
 `3000` tanpa HTTPS, jadi pasang reverse proxy/Cloudflare di depannya. pgAdmin (login dengan
 `PGADMIN_DEFAULT_EMAIL` + password) hanya bisa diakses dari server itu sendiri (`127.0.0.1:8081`, gunakan SSH
 tunnel); tambahkan server di pgAdmin dengan host `db`. Port database tidak dibuka ke host.
+Di produksi (`APP_ENV=production`) tabel tetap dibuat otomatis, tetapi user awal tidak; buat admin pertama
+lewat register lalu `UPDATE users SET role='ADMIN' WHERE email='...'`.
