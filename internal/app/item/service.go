@@ -20,7 +20,7 @@ func NewItemService(repo contracts.ItemRepository) contracts.ItemService {
 }
 
 func (s *itemService) CreateItem(ctx context.Context, req dto.CreateItemRequest) (*dto.ItemResponse, error) {
-	item := entity.NewItem(req.Name, req.TotalQuantity)
+	item := entity.NewItem(req.Name, req.Description, req.TotalQuantity)
 	if err := s.repo.Create(ctx, item); err != nil {
 		return nil, err
 	}
@@ -56,7 +56,7 @@ func (s *itemService) GetItem(ctx context.Context, id uint) (*dto.ItemResponse, 
 }
 
 func (s *itemService) UpdateItem(ctx context.Context, id uint, req dto.UpdateItemRequest) (*dto.ItemResponse, error) {
-	if req.Name == "" && req.TotalQuantity == nil {
+	if req.Name == "" && req.Description == nil && req.TotalQuantity == nil {
 		return nil, errx.ErrNothingToUpdate
 	}
 
@@ -67,6 +67,9 @@ func (s *itemService) UpdateItem(ctx context.Context, id uint, req dto.UpdateIte
 
 	if req.Name != "" {
 		item.Name = req.Name
+	}
+	if req.Description != nil {
+		item.Description = *req.Description // boleh "" untuk mengosongkan keterangan
 	}
 	if req.TotalQuantity != nil {
 		// Aturan "total tidak boleh di bawah jumlah yang dipinjam" ada di entity.

@@ -44,7 +44,8 @@ func (r *itemRepository) FindAll(ctx context.Context, search string, onlyAvailab
 	query := r.db.WithContext(ctx).Model(&entity.Item{})
 	if search != "" {
 		// ILIKE = LIKE yang tidak membedakan huruf besar/kecil (di Postgres, LIKE membedakannya).
-		query = query.Where("name ILIKE ?", "%"+search+"%")
+		like := "%" + search + "%"
+		query = query.Where("name ILIKE ? OR description ILIKE ?", like, like)
 	}
 	if onlyAvailable {
 		query = query.Where("available_quantity > 0")
@@ -63,9 +64,10 @@ func (r *itemRepository) FindAll(ctx context.Context, search string, onlyAvailab
 }
 
 func (r *itemRepository) Update(ctx context.Context, item *entity.Item) error {
-	// Select menentukan kolom yang disimpan, termasuk jika nilainya 0.
+	// Select menentukan kolom yang disimpan, termasuk jika nilainya 0 atau teks kosong "".
+	// Kolom baru yang boleh diubah lewat update WAJIB ditambahkan di sini, kalau tidak GORM tidak menyimpannya.
 	err := r.db.WithContext(ctx).Model(item).
-		Select("name", "total_quantity", "available_quantity").Updates(item).Error
+		Select("name", "description", "total_quantity", "available_quantity").Updates(item).Error
 	if err != nil {
 		return fmt.Errorf("update item %d: %w", item.ID, err)
 	}
