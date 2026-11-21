@@ -163,23 +163,25 @@ Semua endpoint butuh token. Melihat barang boleh semua user yang login; menambah
 
 | Method | Path | Akses | Fungsi |
 |---|---|---|---|
-| POST | `/api/items` | Admin | Tambah barang: `name`, `totalQuantity` |
-| GET | `/api/items` | Login | Daftar barang. Query: `page`, `limit` (1–100, default 10), `search`, `available=true` |
+| POST | `/api/items` | Admin | Tambah barang: `name`, `totalQuantity`, `description` (opsional, maks 1000 karakter) |
+| GET | `/api/items` | Login | Daftar barang. Query: `page`, `limit` (1–100, default 10), `search` (nama atau keterangan), `available=true` |
 | GET | `/api/items/:id` | Login | Detail barang |
-| PUT | `/api/items/:id` | Admin | Update parsial: `name`, `totalQuantity` |
+| PUT | `/api/items/:id` | Admin | Update parsial: `name`, `description` (`""` = dikosongkan), `totalQuantity` |
 | DELETE | `/api/items/:id` | Admin | Hapus barang (soft delete) |
 
 ```bash
 curl -X POST localhost:3000/api/items -H "Authorization: Bearer <token admin>" \
-  -H "Content-Type: application/json" -d '{"name":"Proyektor Epson","totalQuantity":5}'
+  -H "Content-Type: application/json" \
+  -d '{"name":"Proyektor Epson","description":"Simpan di lemari B","totalQuantity":5}'
 ```
 
 Contoh data barang:
 
 ```json
-{"id":1,"name":"Proyektor Epson","totalQuantity":5,"availableQuantity":3,"status":"TERSEDIA", ...}
+{"id":1,"name":"Proyektor Epson","description":"Simpan di lemari B","totalQuantity":5,"availableQuantity":3,"status":"TERSEDIA", ...}
 ```
 
+- `description`: keterangan barang, boleh kosong (`""` jika tidak diisi).
 - `totalQuantity`: jumlah barang yang dimiliki (diatur admin).
 - `availableQuantity`: sisa yang bisa dipinjam. Saat barang baru dibuat, nilainya sama dengan total; nanti
   berkurang saat pengajuan di-ACC dan bertambah saat barang dikembalikan.
