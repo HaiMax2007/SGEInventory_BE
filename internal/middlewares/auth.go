@@ -49,3 +49,11 @@ func AdminOnly(c fiber.Ctx) error {
 	}
 	return c.Next()
 }
+
+// UserOnly hanya meloloskan user dengan role USER (mis. mengajukan peminjaman). Pasang setelah Protected.
+func UserOnly(c fiber.Ctx) error {
+	if fiber.Locals[string](c, "role") != enums.RoleUser {
+		return errx.ErrUserOnly
+	}
+	return c.Next()
+}

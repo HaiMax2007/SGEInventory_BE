@@ -9,9 +9,11 @@ import (
 	"github.com/gofiber/fiber/v3/middleware/recover"
 
 	"SGEInventory_BE/internal/app/auth"
+	"SGEInventory_BE/internal/app/borrowing"
 	"SGEInventory_BE/internal/app/item"
 	"SGEInventory_BE/internal/app/lembaga"
 	"SGEInventory_BE/internal/app/user"
+	"SGEInventory_BE/internal/app/userlog"
 	"SGEInventory_BE/internal/config"
 	"SGEInventory_BE/internal/infra/database"
 	"SGEInventory_BE/internal/infra/repository"
@@ -48,15 +50,21 @@ func main() {
 	userRepo := repository.NewUserRepository(db)
 	itemRepo := repository.NewItemRepository(db)
 	lembagaRepo := repository.NewLembagaRepository(db)
+	borrowingRepo := repository.NewBorrowingRepository(db)
+	userLogRepo := repository.NewUserLogRepository(db)
 
 	userSvc := user.NewUserService(userRepo)
 	itemSvc := item.NewItemService(itemRepo, lembagaRepo)
 	lembagaSvc := lembaga.NewLembagaService(lembagaRepo)
+	borrowingSvc := borrowing.NewBorrowingService(borrowingRepo, userLogRepo, itemRepo, lembagaRepo)
+	userLogSvc := userlog.NewUserLogService(userLogRepo)
 	authSvc := auth.NewAuthService(userRepo, cfg.JWTSecret)
 
 	userHandler := user.NewUserHandler(userSvc)
 	itemHandler := item.NewItemHandler(itemSvc)
 	lembagaHandler := lembaga.NewLembagaHandler(lembagaSvc)
+	borrowingHandler := borrowing.NewBorrowingHandler(borrowingSvc)
+	userLogHandler := userlog.NewUserLogHandler(userLogSvc)
 	authHandler := auth.NewAuthHandler(authSvc)
 
 	// 5. Buat aplikasi Fiber. Semua error dari handler diubah menjadi JSON oleh ErrorHandler.
@@ -84,6 +92,8 @@ func main() {
 	user.RegisterRoutes(api, userHandler, protected)
 	item.RegisterRoutes(api, itemHandler, protected)
 	lembaga.RegisterRoutes(api, lembagaHandler, protected)
+	borrowing.RegisterRoutes(api, borrowingHandler, protected)
+	userlog.RegisterRoutes(api, userLogHandler, protected)
 
 	// 8. Jalankan server
 	log.Fatal(app.Listen(":" + cfg.AppPort))
