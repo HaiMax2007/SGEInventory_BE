@@ -38,20 +38,21 @@ Mengikuti pola Clean Architecture (handler → service → repository).
 cmd/app/main.go                 titik awal: baca config → sambung DB → rakit repository/service/handler → routes
 cmd/migrate, cmd/seed           (kosong) cadangan jika nanti migrasi/seed mau dijalankan sebagai program terpisah
 domain/                         inti aplikasi, tidak tahu soal HTTP
-  entity/                       struct tabel database + aturan bisnisnya (User, Item)
+  entity/                       struct tabel database + aturan bisnisnya (User, Lembaga, Item)
   dto/                          bentuk data request/response JSON (+ isi token JWT)
   contracts/                    interface repository & service ("janji" tiap lapisan)
   enums/                        konstanta role & status barang
   errx/                         error bisnis + Kind-nya (400/401/403/404/409)
 internal/
-  app/<fitur>/                  satu folder per fitur: auth, user, item
+  app/<fitur>/                  satu folder per fitur: auth, user, lembaga, item
     routes.go                   daftar URL → middleware → method handler
     handler.go                  baca request (params, body, query) → panggil service → balas JSON
     service.go                  aturan bisnis (hash password, cek stok, buat token, ...)
   config/config.go              membaca env
   infra/database/postgres.go    membuka koneksi GORM ke PostgreSQL
   infra/database/migrate.go     AutoMigrate: membuat/menyesuaikan tabel dari struct entity setiap app start
-  infra/database/seed.go        user awal Max (ADMIN) & Raka (USER), hanya saat APP_ENV=development
+  infra/database/seed.go        data awal: user Max (ADMIN) & Raka (USER) + lembaga BEM, HMDTIF, DPM
+                                (hanya saat APP_ENV=development)
   infra/repository/             query GORM (satu file per tabel)
   middlewares/auth.go           Protected (cek token) & AdminOnly (cek role)
   middlewares/error_handler.go  mengubah semua error menjadi JSON + status HTTP
@@ -150,12 +151,29 @@ curl localhost:3000/api/auth/me -H "Authorization: Bearer <token>"
 
 User tidak terikat lembaga; lembaga dipilih per pengajuan peminjaman (`borrowings.lembaga_id`).
 Data awal development (dibuat otomatis oleh `internal/infra/database/seed.go` saat `APP_ENV=development`):
-Max (ADMIN, NIM `00000001`) dan Raka (USER, NIM `00000002`). Data lain tambahkan sendiri lewat API atau pgAdmin.
+Max (ADMIN, NIM `00000001`) dan Raka (USER, NIM `00000002`), serta lembaga BEM, HMDTIF dan DPM. Data lain
+tambahkan sendiri lewat API atau pgAdmin.
 
 Catatan:
 - Admin tidak bisa dibuat lewat API. Daftar seperti biasa, lalu ubah lewat pgAdmin (Query Tool):
   `UPDATE users SET role='ADMIN' WHERE email='...'`, kemudian login ulang agar token memuat role baru.
 - User yang dihapus tetap menempati email-nya (soft delete), jadi email itu tidak bisa didaftarkan ulang.
+
+## API Lembaga
+
+Semua endpoint butuh token. Melihat lembaga boleh semua user yang login (dipakai FE untuk pilihan lembaga);
+menambah, mengubah dan menghapus hanya admin.
+
+| Method | Path | Akses | Fungsi |
+|---|---|---|---|
+| POST | `/api/lembaga` | Admin | Tambah lembaga: `name` (2–150 karakter, unik) |
+| GET | `/api/lembaga` | Login | Daftar lembaga, urut nama A–Z. Query: `page`, `limit` (1–100, default 10), `search` |
+| GET | `/api/lembaga/:id` | Login | Detail lembaga |
+| PUT | `/api/lembaga/:id` | Admin | Ganti nama: `name` (wajib) |
+| DELETE | `/api/lembaga/:id` | Admin | Hapus lembaga (soft delete) |
+
+- Nama kembar → 409. Seperti email user, nama lembaga yang sudah dihapus tetap terpakai.
+- Lembaga yang masih menjadi asal barang tidak bisa dihapus (409). Hapus atau pindahkan barangnya dulu.
 
 ## API Barang
 
@@ -163,25 +181,27 @@ Semua endpoint butuh token. Melihat barang boleh semua user yang login; menambah
 
 | Method | Path | Akses | Fungsi |
 |---|---|---|---|
-| POST | `/api/items` | Admin | Tambah barang: `name`, `totalQuantity`, `description` (opsional, maks 1000 karakter) |
+| POST | `/api/items` | Admin | Tambah barang: `name`, `lembagaId` (wajib), `totalQuantity`, `description` (opsional, maks 1000 karakter) |
 | GET | `/api/items` | Login | Daftar barang. Query: `page`, `limit` (1–100, default 10), `search` (nama atau keterangan), `available=true` |
 | GET | `/api/items/:id` | Login | Detail barang |
-| PUT | `/api/items/:id` | Admin | Update parsial: `name`, `description` (`""` = dikosongkan), `totalQuantity` |
+| PUT | `/api/items/:id` | Admin | Update parsial: `name`, `description` (`""` = dikosongkan), `lembagaId`, `totalQuantity` |
 | DELETE | `/api/items/:id` | Admin | Hapus barang (soft delete) |
 
 ```bash
 curl -X POST localhost:3000/api/items -H "Authorization: Bearer <token admin>" \
   -H "Content-Type: application/json" \
-  -d '{"name":"Proyektor Epson","description":"Simpan di lemari B","totalQuantity":5}'
+  -d '{"name":"Proyektor Epson","description":"Simpan di lemari B","lembagaId":1,"totalQuantity":5}'
 ```
 
 Contoh data barang:
 
 ```json
-{"id":1,"name":"Proyektor Epson","description":"Simpan di lemari B","totalQuantity":5,"availableQuantity":3,"status":"TERSEDIA", ...}
+{"id":1,"name":"Proyektor Epson","description":"Simpan di lemari B","lembagaId":1,"lembaga":{"id":1,"name":"BEM"},
+ "totalQuantity":5,"availableQuantity":3,"status":"TERSEDIA", ...}
 ```
 
 - `description`: keterangan barang, boleh kosong (`""` jika tidak diisi).
+- `lembagaId` / `lembaga`: lembaga asal barang. `lembagaId` yang tidak ada atau sudah dihapus → 404.
 - `totalQuantity`: jumlah barang yang dimiliki (diatur admin).
 - `availableQuantity`: sisa yang bisa dipinjam. Saat barang baru dibuat, nilainya sama dengan total; nanti
   berkurang saat pengajuan di-ACC dan bertambah saat barang dikembalikan.

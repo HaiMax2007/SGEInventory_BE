@@ -30,7 +30,8 @@ func (r *itemRepository) Create(ctx context.Context, item *entity.Item) error {
 
 func (r *itemRepository) FindByID(ctx context.Context, id uint) (*entity.Item, error) {
 	var item entity.Item
-	if err := r.db.WithContext(ctx).First(&item, id).Error; err != nil {
+	// Preload("Lembaga"): GORM menjalankan query kedua ke tabel lembaga dan mengisi item.Lembaga.
+	if err := r.db.WithContext(ctx).Preload("Lembaga").First(&item, id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, errx.ErrItemNotFound
 		}
@@ -57,7 +58,9 @@ func (r *itemRepository) FindAll(ctx context.Context, search string, onlyAvailab
 	}
 
 	items := []entity.Item{}
-	if err := query.Order("id DESC").Offset(offset).Limit(limit).Find(&items).Error; err != nil {
+	// Preload diletakkan setelah Count: Count tidak butuh data lembaga.
+	// Untuk satu halaman, GORM cukup satu query tambahan: SELECT * FROM lembaga WHERE id IN (...).
+	if err := query.Preload("Lembaga").Order("id DESC").Offset(offset).Limit(limit).Find(&items).Error; err != nil {
 		return nil, 0, fmt.Errorf("list items: %w", err)
 	}
 	return items, total, nil
@@ -67,7 +70,7 @@ func (r *itemRepository) Update(ctx context.Context, item *entity.Item) error {
 	// Select menentukan kolom yang disimpan, termasuk jika nilainya 0 atau teks kosong "".
 	// Kolom baru yang boleh diubah lewat update WAJIB ditambahkan di sini, kalau tidak GORM tidak menyimpannya.
 	err := r.db.WithContext(ctx).Model(item).
-		Select("name", "description", "total_quantity", "available_quantity").Updates(item).Error
+		Select("name", "description", "lembaga_id", "total_quantity", "available_quantity").Updates(item).Error
 	if err != nil {
 		return fmt.Errorf("update item %d: %w", item.ID, err)
 	}

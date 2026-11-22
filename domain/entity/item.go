@@ -16,6 +16,11 @@ type Item struct {
 	Name string `gorm:"size:255;not null"`
 	// keterangan barang (opsional). Kolom boleh NULL, GORM membacanya sebagai "".
 	Description string `gorm:"type:text"`
+	// lembaga asal barang (wajib). Ini kolom foreign key items.lembaga_id → lembaga.id.
+	LembagaID uint `gorm:"not null;index:idx_items_lembaga_id"`
+	// Lembaga BUKAN kolom: ini relasi "belongs to" untuk GORM, hanya terisi jika query memakai
+	// Preload("Lembaga"). Aturan FOREIGN KEY-nya ditulis di sisi lain relasi (Lembaga.Items).
+	Lembaga *Lembaga
 	// jumlah barang yang dimiliki
 	TotalQuantity int `gorm:"not null;check:chk_items_total_non_negative,total_quantity >= 0"`
 	// sisa yang bisa dipinjam: 0 sampai total. GORM hanya membaca satu "check:" per field,
@@ -31,10 +36,11 @@ func (Item) TableName() string {
 }
 
 // NewItem membuat barang baru. Belum ada yang dipinjam, jadi sisa = total.
-func NewItem(name, description string, totalQuantity int) *Item {
+func NewItem(name, description string, lembagaID uint, totalQuantity int) *Item {
 	return &Item{
 		Name:              name,
 		Description:       description,
+		LembagaID:         lembagaID,
 		TotalQuantity:     totalQuantity,
 		AvailableQuantity: totalQuantity,
 	}
