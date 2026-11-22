@@ -10,6 +10,7 @@ import (
 
 	"SGEInventory_BE/internal/app/auth"
 	"SGEInventory_BE/internal/app/item"
+	"SGEInventory_BE/internal/app/lembaga"
 	"SGEInventory_BE/internal/app/user"
 	"SGEInventory_BE/internal/config"
 	"SGEInventory_BE/internal/infra/database"
@@ -32,7 +33,7 @@ func main() {
 	}
 
 	// 3. Samakan struktur tabel dengan entity (AutoMigrate),
-	//    lalu isi user awal Max & Raka (khusus development)
+	//    lalu isi data awal: user Max & Raka + lembaga (khusus development)
 	if err := database.Migrate(db); err != nil {
 		log.Fatal(err)
 	}
@@ -46,13 +47,16 @@ func main() {
 	//    repository (akses database) → service (aturan bisnis) → handler (HTTP)
 	userRepo := repository.NewUserRepository(db)
 	itemRepo := repository.NewItemRepository(db)
+	lembagaRepo := repository.NewLembagaRepository(db)
 
 	userSvc := user.NewUserService(userRepo)
-	itemSvc := item.NewItemService(itemRepo)
+	itemSvc := item.NewItemService(itemRepo, lembagaRepo)
+	lembagaSvc := lembaga.NewLembagaService(lembagaRepo)
 	authSvc := auth.NewAuthService(userRepo, cfg.JWTSecret)
 
 	userHandler := user.NewUserHandler(userSvc)
 	itemHandler := item.NewItemHandler(itemSvc)
+	lembagaHandler := lembaga.NewLembagaHandler(lembagaSvc)
 	authHandler := auth.NewAuthHandler(authSvc)
 
 	// 5. Buat aplikasi Fiber. Semua error dari handler diubah menjadi JSON oleh ErrorHandler.
@@ -79,6 +83,7 @@ func main() {
 	auth.RegisterRoutes(api, authHandler, protected)
 	user.RegisterRoutes(api, userHandler, protected)
 	item.RegisterRoutes(api, itemHandler, protected)
+	lembaga.RegisterRoutes(api, lembagaHandler, protected)
 
 	// 8. Jalankan server
 	log.Fatal(app.Listen(":" + cfg.AppPort))
