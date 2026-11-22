@@ -12,7 +12,7 @@ type CreateItemRequest struct {
 	Name          string `json:"name" validate:"required,min=2,max=255"`
 	Description   string `json:"description" validate:"omitempty,max=1000"`
 	LembagaID     uint   `json:"lembagaId" validate:"required"`
-	TotalQuantity int    `json:"totalQuantity" validate:"gte=0,lte=1000000"`
+	TotalQuantity int    `json:"totalQuantity" validate:"required"`
 }
 
 // UpdateItemRequest adalah isi body PUT /api/items/:id. Semua field opsional.
@@ -41,7 +41,6 @@ type ItemResponse struct {
 	ID                uint            `json:"id"`
 	Name              string          `json:"name"`
 	Description       string          `json:"description"`
-	LembagaID         uint            `json:"lembagaId"`
 	Lembaga           *LembagaSummary `json:"lembaga"` // {id, name} lembaga asal barang
 	TotalQuantity     int             `json:"totalQuantity"`
 	AvailableQuantity int             `json:"availableQuantity"`
@@ -56,7 +55,6 @@ func NewItemResponse(i *entity.Item) ItemResponse {
 		ID:                i.ID,
 		Name:              i.Name,
 		Description:       i.Description,
-		LembagaID:         i.LembagaID,
 		Lembaga:           NewLembagaSummary(i.Lembaga),
 		TotalQuantity:     i.TotalQuantity,
 		AvailableQuantity: i.AvailableQuantity,

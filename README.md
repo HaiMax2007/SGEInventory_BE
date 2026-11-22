@@ -196,12 +196,12 @@ curl -X POST localhost:3000/api/items -H "Authorization: Bearer <token admin>" \
 Contoh data barang:
 
 ```json
-{"id":1,"name":"Proyektor Epson","description":"Simpan di lemari B","lembagaId":1,"lembaga":{"id":1,"name":"BEM"},
+{"id":1,"name":"Proyektor Epson","description":"Simpan di lemari B","lembaga":{"id":1,"name":"BEM"},
  "totalQuantity":5,"availableQuantity":3,"status":"TERSEDIA", ...}
 ```
 
 - `description`: keterangan barang, boleh kosong (`""` jika tidak diisi).
-- `lembagaId` / `lembaga`: lembaga asal barang. `lembagaId` yang tidak ada atau sudah dihapus → 404.
+- `lembagaId` (dikirim saat create/update) / `lembaga` (di response): lembaga asal barang. `lembagaId` yang tidak ada atau sudah dihapus → 404.
 - `totalQuantity`: jumlah barang yang dimiliki (diatur admin).
 - `availableQuantity`: sisa yang bisa dipinjam. Saat barang baru dibuat, nilainya sama dengan total; nanti
   berkurang saat pengajuan di-ACC dan bertambah saat barang dikembalikan.
