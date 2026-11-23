@@ -57,3 +57,19 @@ func NewUserResponse(u *entity.User) UserResponse {
 		UpdatedAt: u.UpdatedAt,
 	}
 }
+
+// UserSummary adalah ringkasan user yang ikut ditampilkan di data lain, mis. peminjam sebuah
+// pengajuan atau pelaku sebuah aktivitas di log.
+type UserSummary struct {
+	ID       uint   `json:"id"`
+	FullName string `json:"fullName"`
+}
+
+// NewUserSummary mengubah entity.User menjadi UserSummary.
+// Mengembalikan nil (null di JSON) jika user belum di-Preload.
+func NewUserSummary(u *entity.User) *UserSummary {
+	if u == nil {
+		return nil
+	}
+	return &UserSummary{ID: u.ID, FullName: u.FullName}
+}

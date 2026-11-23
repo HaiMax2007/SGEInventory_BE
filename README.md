@@ -38,13 +38,13 @@ Mengikuti pola Clean Architecture (handler → service → repository).
 cmd/app/main.go                 titik awal: baca config → sambung DB → rakit repository/service/handler → routes
 cmd/migrate, cmd/seed           (kosong) cadangan jika nanti migrasi/seed mau dijalankan sebagai program terpisah
 domain/                         inti aplikasi, tidak tahu soal HTTP
-  entity/                       struct tabel database + aturan bisnisnya (User, Lembaga, Item)
+  entity/                       struct tabel database + aturan bisnisnya (User, Lembaga, Item, Borrowing, BorrowingItem, UserLog)
   dto/                          bentuk data request/response JSON (+ isi token JWT)
   contracts/                    interface repository & service ("janji" tiap lapisan)
-  enums/                        konstanta role & status barang
+  enums/                        konstanta role, status barang, status peminjaman, jenis & aktivitas log
   errx/                         error bisnis + Kind-nya (400/401/403/404/409)
 internal/
-  app/<fitur>/                  satu folder per fitur: auth, user, lembaga, item
+  app/<fitur>/                  satu folder per fitur: auth, user, lembaga, item, borrowing, userlog
     routes.go                   daftar URL → middleware → method handler
     handler.go                  baca request (params, body, query) → panggil service → balas JSON
     service.go                  aturan bisnis (hash password, cek stok, buat token, ...)
@@ -54,7 +54,7 @@ internal/
   infra/database/seed.go        data awal: user Max (ADMIN) & Raka (USER) + lembaga BEM, HMDTIF, DPM
                                 (hanya saat APP_ENV=development)
   infra/repository/             query GORM (satu file per tabel)
-  middlewares/auth.go           Protected (cek token) & AdminOnly (cek role)
+  middlewares/auth.go           Protected (cek token), AdminOnly & UserOnly (cek role)
   middlewares/error_handler.go  mengubah semua error menjadi JSON + status HTTP
 helpers/pagination/             hitung page/limit/offset/totalPages
 pkg/response/                   membuat respons sukses {"message","data","meta"}
@@ -209,6 +209,64 @@ Contoh data barang:
 - Mengubah `totalQuantity` menggeser `availableQuantity` sebesar selisihnya. Total tidak boleh lebih kecil dari
   jumlah yang sedang dipinjam (409).
 - Barang yang masih dipinjam tidak bisa dihapus (409).
+
+## API Peminjaman
+
+| Method | URL | Akses | Keterangan |
+|---|---|---|---|
+| POST | `/api/borrowings` | **User (role USER)** | Kirim pengajuan peminjaman (admin → 403) |
+| GET | `/api/borrowings` | Admin | Daftar **semua** pengajuan, terbaru dulu. Query: `page`, `limit`, `status` (opsional, mis. `PENDING`; status tidak dikenal → 400) |
+| GET | `/api/borrowings/me` | Login | Daftar pengajuan milik sendiri + status terkini (tanpa `timeline`). Query: `page`, `limit` |
+| GET | `/api/borrowings/:id` | Pemilik / Admin | Detail **satu** pengajuan + `timeline` (riwayat aktivitas). Pengajuan orang lain → 404 |
+
+```bash
+curl -X POST localhost:3000/api/borrowings -H "Authorization: Bearer <token user>" \
+  -H "Content-Type: application/json" \
+  -d '{"lembagaId":2,"purpose":"Seminar nasional HMDTIF","pickUpDate":"2026-11-25","returnDate":"2026-11-28",
+       "items":[{"itemId":1,"quantity":2},{"itemId":4,"quantity":1}]}'
+```
+
+Contoh detail (`GET /api/borrowings/1`):
+
+```json
+{"id":1,"status":"PENDING","purpose":"Seminar nasional HMDTIF","pickUpDate":"2026-11-25","returnDate":"2026-11-28",
+ "lembaga":{"id":2,"name":"HMDTIF"},
+ "items":[{"itemId":1,"itemName":"Proyektor Epson","quantity":2}],
+ "timeline":[{"activity":"SUBMITTED","actor":{"id":2,"fullName":"Raka"},"createdAt":"..."}], ...}
+```
+
+Aturan submit (setiap aturan punya pesan error sendiri, lihat `domain/errx/borrowing_errx.go`):
+- `items`: 1–20 jenis barang, `itemId` wajib, `quantity > 0`, barang yang sama tidak boleh dipilih dua kali (400).
+  Barang yang tidak ada → 404 (id-nya disebut). Jumlah melebihi `availableQuantity` → 409, semua barang yang
+  kurang disebut sekaligus.
+- `lembagaId` wajib dan lembaganya harus ada (404).
+- `purpose` wajib (spasi saja dianggap kosong), maksimal 500 karakter.
+- `pickUpDate` & `returnDate` format `YYYY-MM-DD`. `pickUpDate` tidak boleh sebelum hari ini (WIB);
+  `returnDate` harus **setelah** `pickUpDate` (hari yang sama ditolak) dan paling lambat `pickUpDate` + 7 hari.
+- Peminjam diambil dari token, bukan dari body. Nama barang diambil dari database dan disalin ke pengajuan.
+- Submit **tidak** mengurangi stok; stok berkurang saat admin ACC (tahap berikutnya).
+- Pengajuan, barang-barangnya, dan log `SUBMITTED` disimpan dalam satu transaksi.
+
+Status: `PENDING` → `APPROVED` / `REJECTED` (final) → `RETURN_PENDING` → `RETURNED`. Setiap tahap terjadi
+sekali; pengajuan yang ditolak selesai, user membuat pengajuan baru.
+
+`timeline` berasal dari tabel `log_users`. `actor` adalah **pelaku** aktivitas (user saat mengajukan, admin saat
+ACC/menolak), sedangkan pemilik pengajuan ada di `borrowings.user_id` (di response: `user`). Timeline diambil
+per pengajuan (`request_type` + `request_id`), jadi aksi admin tetap terlihat oleh peminjam.
+
+## API Riwayat Aktivitas (log)
+
+| Method | URL | Akses | Keterangan |
+|---|---|---|---|
+| GET | `/api/logs` | Admin | Semua isi `log_users`, terbaru dulu. Query: `page`, `limit`, `requestType` (opsional: `BORROWING` / `CONSIGNMENT`; lainnya → 400) |
+
+```json
+{"id":3,"requestType":"BORROWING","requestId":3,"activity":"SUBMITTED",
+ "actor":{"id":2,"fullName":"Raka"},"createdAt":"..."}
+```
+
+`requestType` + `requestId` menunjuk pengajuan yang dimaksud; detailnya bisa dibuka lewat
+`GET /api/borrowings/{requestId}` (untuk `BORROWING`).
 
 ## Struktur tabel (AutoMigrate)
 

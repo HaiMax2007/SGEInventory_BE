@@ -40,6 +40,16 @@ func (r *itemRepository) FindByID(ctx context.Context, id uint) (*entity.Item, e
 	return &item, nil
 }
 
+// FindByIDs mengambil banyak barang dengan satu query: SELECT * FROM items WHERE id IN (...).
+// Barang yang sudah dihapus (soft delete) otomatis tidak ikut.
+func (r *itemRepository) FindByIDs(ctx context.Context, ids []uint) ([]entity.Item, error) {
+	items := []entity.Item{}
+	if err := r.db.WithContext(ctx).Where("id IN ?", ids).Find(&items).Error; err != nil {
+		return nil, fmt.Errorf("find items by ids: %w", err)
+	}
+	return items, nil
+}
+
 // FindAll mengembalikan satu halaman barang + jumlah seluruh barang yang cocok dengan filter.
 func (r *itemRepository) FindAll(ctx context.Context, search string, onlyAvailable bool, offset, limit int) ([]entity.Item, int64, error) {
 	query := r.db.WithContext(ctx).Model(&entity.Item{})

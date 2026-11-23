@@ -11,6 +11,8 @@ import (
 type ItemRepository interface {
 	Create(ctx context.Context, item *entity.Item) error
 	FindByID(ctx context.Context, id uint) (*entity.Item, error)
+	// FindByIDs mengambil banyak barang sekaligus (yang belum dihapus). Id yang tidak ada tidak ikut di hasil.
+	FindByIDs(ctx context.Context, ids []uint) ([]entity.Item, error)
 	FindAll(ctx context.Context, search string, onlyAvailable bool, offset, limit int) ([]entity.Item, int64, error)
 	Update(ctx context.Context, item *entity.Item) error
 	Delete(ctx context.Context, item *entity.Item) error

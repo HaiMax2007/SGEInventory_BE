@@ -22,6 +22,9 @@ func Migrate(db *gorm.DB) error {
 		&entity.User{},
 		&entity.Lembaga{},
 		&entity.Item{},
+		&entity.Borrowing{},
+		&entity.BorrowingItem{},
+		&entity.UserLog{},
 	); err != nil {
 		return fmt.Errorf("auto migrate: %w", err)
 	}

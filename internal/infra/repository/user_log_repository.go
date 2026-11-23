@@ -1,0 +1,58 @@
+package repository
+
+import (
+	"context"
+	"fmt"
+
+	"gorm.io/gorm"
+
+	"SGEInventory_BE/domain/contracts"
+	"SGEInventory_BE/domain/entity"
+)
+
+type userLogRepository struct {
+	db *gorm.DB
+}
+
+// NewUserLogRepository membuat repository log aktivitas. Tipe kembaliannya interface contracts.UserLogRepository.
+func NewUserLogRepository(db *gorm.DB) contracts.UserLogRepository {
+	return &userLogRepository{db: db}
+}
+
+// FindByRequest mengambil riwayat sebuah pengajuan, urut dari yang paling lama.
+// Pelaku (User) ikut dimuat, termasuk user yang sudah dihapus (Unscoped) agar riwayat tetap lengkap.
+func (r *userLogRepository) FindByRequest(ctx context.Context, requestType string, requestID uint) ([]entity.UserLog, error) {
+	logs := []entity.UserLog{}
+	err := r.db.WithContext(ctx).
+		Preload("User", func(db *gorm.DB) *gorm.DB { return db.Unscoped() }).
+		Where("request_type = ? AND request_id = ?", requestType, requestID).
+		Order("created_at ASC, id ASC").
+		Find(&logs).Error
+	if err != nil {
+		return nil, fmt.Errorf("find logs %s %d: %w", requestType, requestID, err)
+	}
+	return logs, nil
+}
+
+// FindAll mengambil satu halaman semua log, terbaru dulu (kebalikan dari timeline yang urut dari yang lama).
+func (r *userLogRepository) FindAll(ctx context.Context, requestType string, offset, limit int) ([]entity.UserLog, int64, error) {
+	query := r.db.WithContext(ctx).Model(&entity.UserLog{})
+	if requestType != "" {
+		query = query.Where("request_type = ?", requestType)
+	}
+
+	var total int64
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, fmt.Errorf("count logs: %w", err)
+	}
+
+	logs := []entity.UserLog{}
+	err := query.
+		Preload("User", func(db *gorm.DB) *gorm.DB { return db.Unscoped() }).
+		Order("id DESC").Offset(offset).Limit(limit).
+		Find(&logs).Error
+	if err != nil {
+		return nil, 0, fmt.Errorf("list logs: %w", err)
+	}
+	return logs, total, nil
+}
