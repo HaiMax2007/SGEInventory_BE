@@ -52,11 +52,14 @@ func main() {
 	lembagaRepo := repository.NewLembagaRepository(db)
 	borrowingRepo := repository.NewBorrowingRepository(db)
 	userLogRepo := repository.NewUserLogRepository(db)
+	transactor := repository.NewTransactor(db) // menjalankan beberapa repository dalam satu transaksi
 
 	userSvc := user.NewUserService(userRepo)
-	itemSvc := item.NewItemService(itemRepo, lembagaRepo)
+	// borrowingSvc dibuat sebelum itemSvc: item service memakainya untuk menolak otomatis pengajuan
+	// PENDING saat total barang dikurangi.
+	borrowingSvc := borrowing.NewBorrowingService(borrowingRepo, userLogRepo, itemRepo, lembagaRepo, transactor)
+	itemSvc := item.NewItemService(itemRepo, lembagaRepo, borrowingSvc, transactor)
 	lembagaSvc := lembaga.NewLembagaService(lembagaRepo)
-	borrowingSvc := borrowing.NewBorrowingService(borrowingRepo, userLogRepo, itemRepo, lembagaRepo)
 	userLogSvc := userlog.NewUserLogService(userLogRepo)
 	authSvc := auth.NewAuthService(userRepo, cfg.JWTSecret)
 

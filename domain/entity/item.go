@@ -1,6 +1,7 @@
 package entity
 
 import (
+	"fmt"
 	"time"
 
 	"gorm.io/gorm"
@@ -54,6 +55,25 @@ func (i *Item) BorrowedQuantity() int {
 // IsBorrowed bernilai true jika masih ada barang yang dipinjam.
 func (i *Item) IsBorrowed() bool {
 	return i.BorrowedQuantity() > 0
+}
+
+// CanLend bernilai true jika stok tersedia cukup untuk dipinjam sebanyak qty.
+func (i *Item) CanLend(qty int) bool {
+	return qty > 0 && qty <= i.AvailableQuantity
+}
+
+// Lend mengurangi stok tersedia karena qty barang dipinjam (dipanggil saat pengajuan di-ACC).
+func (i *Item) Lend(qty int) error {
+	if !i.CanLend(qty) {
+		return errx.NewInsufficientStock([]string{LendShortage(i.Name, qty, i.AvailableQuantity)})
+	}
+	i.AvailableQuantity -= qty
+	return nil
+}
+
+// LendShortage membuat satu keterangan barang yang stoknya kurang, mis. "Proyektor (diminta 5, tersedia 3)".
+func LendShortage(name string, requested, available int) string {
+	return fmt.Sprintf("%s (diminta %d, tersedia %d)", name, requested, available)
 }
 
 // ChangeTotal mengubah total barang. Sisa ikut bergeser sebesar selisihnya.

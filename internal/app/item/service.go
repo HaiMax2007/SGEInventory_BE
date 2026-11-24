@@ -13,11 +13,20 @@ import (
 type itemService struct {
 	repo        contracts.ItemRepository
 	lembagaRepo contracts.LembagaRepository // untuk memastikan lembaga asal barang ada
+	// rejecter menolak otomatis pengajuan PENDING yang tidak tercukupi lagi saat total barang dikurangi.
+	// Diisi BorrowingService (hanya kemampuan ini yang dipakai, lihat contracts.PendingBorrowingRejecter).
+	rejecter contracts.PendingBorrowingRejecter
+	tx       contracts.Transactor
 }
 
-// NewItemService membuat service barang. Repository dioper dari main.go (dependency injection).
-func NewItemService(repo contracts.ItemRepository, lembagaRepo contracts.LembagaRepository) contracts.ItemService {
-	return &itemService{repo: repo, lembagaRepo: lembagaRepo}
+// NewItemService membuat service barang. Dependency dioper dari main.go (dependency injection).
+func NewItemService(
+	repo contracts.ItemRepository,
+	lembagaRepo contracts.LembagaRepository,
+	rejecter contracts.PendingBorrowingRejecter,
+	tx contracts.Transactor,
+) contracts.ItemService {
+	return &itemService{repo: repo, lembagaRepo: lembagaRepo, rejecter: rejecter, tx: tx}
 }
 
 func (s *itemService) CreateItem(ctx context.Context, req dto.CreateItemRequest) (*dto.ItemResponse, error) {
@@ -65,60 +74,77 @@ func (s *itemService) GetItem(ctx context.Context, id uint) (*dto.ItemResponse, 
 	return &res, nil
 }
 
-func (s *itemService) UpdateItem(ctx context.Context, id uint, req dto.UpdateItemRequest) (*dto.ItemResponse, error) {
+// UpdateItem mengubah barang di dalam transaksi dengan baris barang DIKUNCI (SELECT ... FOR UPDATE).
+// Tanpa kunci, edit total yang berjalan bersamaan dengan ACC bisa menimpa stok dengan nilai lama
+// (lost update). Jika stok tersedia berkurang, pengajuan PENDING yang tidak tercukupi lagi ditolak otomatis
+// dengan pelaku adminID.
+func (s *itemService) UpdateItem(ctx context.Context, id, adminID uint, req dto.UpdateItemRequest) (*dto.ItemResponse, error) {
 	if req.Name == "" && req.Description == nil && req.LembagaID == nil && req.TotalQuantity == nil {
 		return nil, errx.ErrNothingToUpdate
 	}
 
-	item, err := s.repo.FindByID(ctx, id)
+	err := s.tx.WithinTransaction(ctx, func(ctx context.Context) error {
+		item, err := s.repo.FindByIDForUpdate(ctx, id)
+		if err != nil {
+			return err // errx.ErrItemNotFound
+		}
+
+		// Lembaga asal yang baru dicek dulu (harus ada & belum dihapus).
+		if req.LembagaID != nil {
+			lembaga, err := s.lembagaRepo.FindByID(ctx, *req.LembagaID)
+			if err != nil {
+				return err // errx.ErrLembagaNotFound
+			}
+			item.LembagaID = lembaga.ID
+		}
+
+		if req.Name != "" {
+			item.Name = req.Name
+		}
+		if req.Description != nil {
+			item.Description = *req.Description // boleh "" untuk mengosongkan keterangan
+		}
+		availableBefore := item.AvailableQuantity
+		if req.TotalQuantity != nil {
+			// Aturan "total tidak boleh di bawah jumlah yang dipinjam" ada di entity.
+			if err := item.ChangeTotal(*req.TotalQuantity); err != nil {
+				return err
+			}
+		}
+
+		if err := s.repo.Update(ctx, item); err != nil {
+			return err
+		}
+
+		// Stok tersedia berkurang → pengajuan PENDING yang memuat barang ini mungkin tidak tercukupi lagi.
+		if item.AvailableQuantity < availableBefore {
+			if _, err := s.rejecter.RejectUnfulfillablePending(ctx, []uint{item.ID}, adminID); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 	if err != nil {
 		return nil, err
 	}
 
-	// Lembaga asal yang baru dicek dulu (harus ada & belum dihapus).
-	var newLembaga *entity.Lembaga
-	if req.LembagaID != nil {
-		newLembaga, err = s.lembagaRepo.FindByID(ctx, *req.LembagaID)
-		if err != nil {
-			return nil, err // errx.ErrLembagaNotFound
-		}
-		item.LembagaID = newLembaga.ID
-	}
-
-	if req.Name != "" {
-		item.Name = req.Name
-	}
-	if req.Description != nil {
-		item.Description = *req.Description // boleh "" untuk mengosongkan keterangan
-	}
-	if req.TotalQuantity != nil {
-		// Aturan "total tidak boleh di bawah jumlah yang dipinjam" ada di entity.
-		if err := item.ChangeTotal(*req.TotalQuantity); err != nil {
-			return nil, err
-		}
-	}
-
-	if err := s.repo.Update(ctx, item); err != nil {
-		return nil, err
-	}
-
-	// item.Lembaga dari FindByID masih lembaga lama; ganti supaya response menampilkan yang baru.
-	if newLembaga != nil {
-		item.Lembaga = newLembaga
-	}
-	res := dto.NewItemResponse(item)
-	return &res, nil
+	// Ambil ulang (dengan data lembaga) setelah transaksi selesai, untuk response.
+	return s.GetItem(ctx, id)
 }
 
+// DeleteItem menghapus barang (soft delete). Baris barang dikunci dulu supaya tidak ada ACC yang
+// mengurangi stoknya di antara pengecekan "masih dipinjam?" dan penghapusan.
 func (s *itemService) DeleteItem(ctx context.Context, id uint) error {
-	item, err := s.repo.FindByID(ctx, id)
-	if err != nil {
-		return err
-	}
+	return s.tx.WithinTransaction(ctx, func(ctx context.Context) error {
+		item, err := s.repo.FindByIDForUpdate(ctx, id)
+		if err != nil {
+			return err
+		}
 
-	// Barang yang sebagian masih dipinjam tidak boleh dihapus.
-	if item.IsBorrowed() {
-		return errx.ErrItemStillBorrowed
-	}
-	return s.repo.Delete(ctx, item)
+		// Barang yang sebagian masih dipinjam tidak boleh dihapus.
+		if item.IsBorrowed() {
+			return errx.ErrItemStillBorrowed
+		}
+		return s.repo.Delete(ctx, item)
+	})
 }

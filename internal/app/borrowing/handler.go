@@ -83,6 +83,36 @@ func (h *BorrowingHandler) GetByID(c fiber.Ctx) error {
 	return response.Success(c, fiber.StatusOK, "Pengajuan peminjaman ditemukan", res)
 }
 
+// Approve: PATCH /api/borrowings/:id/approve (admin; tanpa body)
+func (h *BorrowingHandler) Approve(c fiber.Ctx) error {
+	id, err := parseID(c)
+	if err != nil {
+		return err
+	}
+
+	adminID := fiber.Locals[uint](c, "userID") // dicatat sebagai pelaku di log
+	res, err := h.svc.ApproveBorrowing(c.Context(), id, adminID)
+	if err != nil {
+		return err
+	}
+	return response.Success(c, fiber.StatusOK, "Pengajuan peminjaman disetujui", res)
+}
+
+// Reject: PATCH /api/borrowings/:id/reject (admin; tanpa body)
+func (h *BorrowingHandler) Reject(c fiber.Ctx) error {
+	id, err := parseID(c)
+	if err != nil {
+		return err
+	}
+
+	adminID := fiber.Locals[uint](c, "userID")
+	res, err := h.svc.RejectBorrowing(c.Context(), id, adminID)
+	if err != nil {
+		return err
+	}
+	return response.Success(c, fiber.StatusOK, "Pengajuan peminjaman ditolak", res)
+}
+
 // parseID mengubah :id di URL menjadi angka.
 func parseID(c fiber.Ctx) (uint, error) {
 	id, err := strconv.Atoi(c.Params("id"))

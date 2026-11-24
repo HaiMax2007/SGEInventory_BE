@@ -19,4 +19,16 @@ type BorrowingRepository interface {
 	// FindAll mengambil satu halaman SEMUA pengajuan (terbaru dulu) + jumlah seluruhnya.
 	// status kosong = semua status.
 	FindAll(ctx context.Context, status string, offset, limit int) ([]entity.Borrowing, int64, error)
+
+	// Method di bawah dipakai di dalam Transactor.WithinTransaction (tahap approval admin).
+
+	// FindByIDForUpdate mengambil & MENGUNCI satu pengajuan (tanpa relasi) sampai transaksi selesai.
+	FindByIDForUpdate(ctx context.Context, id uint) (*entity.Borrowing, error)
+	// UpdateStatus menyimpan status pengajuan (updated_at ikut berubah).
+	UpdateStatus(ctx context.Context, borrowing *entity.Borrowing) error
+	// LockUnfulfillablePending mencari & MENGUNCI pengajuan PENDING yang memuat salah satu itemIDs
+	// dengan jumlah melebihi stok tersedia saat ini. Hasil: id pengajuan, urut naik.
+	LockUnfulfillablePending(ctx context.Context, itemIDs []uint) ([]uint, error)
+	// UpdateStatuses mengubah status banyak pengajuan sekaligus.
+	UpdateStatuses(ctx context.Context, ids []uint, status string) error
 }

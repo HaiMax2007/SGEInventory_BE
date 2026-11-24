@@ -86,3 +86,17 @@ func NewInsufficientStock(details []string) *DomainError {
 	return New(KindConflict, "INSUFFICIENT_STOCK",
 		"Stok tidak cukup: "+strings.Join(details, ", "))
 }
+
+// NewBorrowingAlreadyProcessed: admin mencoba ACC/menolak pengajuan yang statusnya bukan PENDING lagi
+// (sudah diproses, mungkin oleh admin lain atau ditolak otomatis). Setiap tahap hanya terjadi sekali.
+func NewBorrowingAlreadyProcessed(status string) *DomainError {
+	return New(KindConflict, "BORROWING_ALREADY_PROCESSED",
+		fmt.Sprintf("Pengajuan sudah diproses (status: %s)", status))
+}
+
+// NewBorrowItemsUnavailable: saat ACC, ada barang di pengajuan yang sudah dihapus admin.
+// Pengajuan seperti ini tidak bisa di-ACC; admin cukup menolaknya.
+func NewBorrowItemsUnavailable(names []string) *DomainError {
+	return New(KindConflict, "BORROW_ITEMS_UNAVAILABLE",
+		"Barang sudah dihapus: "+strings.Join(names, ", "))
+}

@@ -23,7 +23,7 @@ func NewUserLogRepository(db *gorm.DB) contracts.UserLogRepository {
 // Pelaku (User) ikut dimuat, termasuk user yang sudah dihapus (Unscoped) agar riwayat tetap lengkap.
 func (r *userLogRepository) FindByRequest(ctx context.Context, requestType string, requestID uint) ([]entity.UserLog, error) {
 	logs := []entity.UserLog{}
-	err := r.db.WithContext(ctx).
+	err := conn(ctx, r.db).
 		Preload("User", func(db *gorm.DB) *gorm.DB { return db.Unscoped() }).
 		Where("request_type = ? AND request_id = ?", requestType, requestID).
 		Order("created_at ASC, id ASC").
@@ -36,7 +36,7 @@ func (r *userLogRepository) FindByRequest(ctx context.Context, requestType strin
 
 // FindAll mengambil satu halaman semua log, terbaru dulu (kebalikan dari timeline yang urut dari yang lama).
 func (r *userLogRepository) FindAll(ctx context.Context, requestType string, offset, limit int) ([]entity.UserLog, int64, error) {
-	query := r.db.WithContext(ctx).Model(&entity.UserLog{})
+	query := conn(ctx, r.db).Model(&entity.UserLog{})
 	if requestType != "" {
 		query = query.Where("request_type = ?", requestType)
 	}
@@ -55,4 +55,22 @@ func (r *userLogRepository) FindAll(ctx context.Context, requestType string, off
 		return nil, 0, fmt.Errorf("list logs: %w", err)
 	}
 	return logs, total, nil
+}
+
+func (r *userLogRepository) Create(ctx context.Context, log *entity.UserLog) error {
+	if err := conn(ctx, r.db).Create(log).Error; err != nil {
+		return fmt.Errorf("create log: %w", err)
+	}
+	return nil
+}
+
+// CreateMany: GORM membuat satu INSERT berisi banyak baris (VALUES (...), (...), ...).
+func (r *userLogRepository) CreateMany(ctx context.Context, logs []entity.UserLog) error {
+	if len(logs) == 0 {
+		return nil
+	}
+	if err := conn(ctx, r.db).Create(&logs).Error; err != nil {
+		return fmt.Errorf("create logs: %w", err)
+	}
+	return nil
 }

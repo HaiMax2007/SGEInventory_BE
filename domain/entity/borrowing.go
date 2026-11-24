@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"SGEInventory_BE/domain/enums"
+	"SGEInventory_BE/domain/errx"
 )
 
 // Borrowing adalah cermin tabel borrowings: satu pengajuan peminjaman (header).
@@ -34,6 +35,25 @@ type Borrowing struct {
 
 func (Borrowing) TableName() string {
 	return "borrowings"
+}
+
+// Approve menyetujui pengajuan. Hanya pengajuan PENDING yang bisa diproses, dan hanya sekali.
+// Pengurangan stok dilakukan service (butuh data barang), bukan di sini.
+func (b *Borrowing) Approve() error {
+	if b.Status != enums.BorrowingPending {
+		return errx.NewBorrowingAlreadyProcessed(b.Status)
+	}
+	b.Status = enums.BorrowingApproved
+	return nil
+}
+
+// Reject menolak pengajuan. Hanya pengajuan PENDING yang bisa diproses, dan hanya sekali.
+func (b *Borrowing) Reject() error {
+	if b.Status != enums.BorrowingPending {
+		return errx.NewBorrowingAlreadyProcessed(b.Status)
+	}
+	b.Status = enums.BorrowingRejected
+	return nil
 }
 
 // NewBorrowing membuat pengajuan baru dengan status PENDING.

@@ -16,4 +16,13 @@ type ItemRepository interface {
 	FindAll(ctx context.Context, search string, onlyAvailable bool, offset, limit int) ([]entity.Item, int64, error)
 	Update(ctx context.Context, item *entity.Item) error
 	Delete(ctx context.Context, item *entity.Item) error
+
+	// Dipakai di dalam Transactor.WithinTransaction: baris yang dibaca dikunci sampai transaksi selesai,
+	// supaya stok tidak bisa diubah transaksi lain di antara "baca" dan "simpan".
+
+	// FindByIDForUpdate mengambil & mengunci satu barang (tanpa relasi lembaga).
+	FindByIDForUpdate(ctx context.Context, id uint) (*entity.Item, error)
+	// FindByIDsForUpdate mengambil & mengunci banyak barang, URUT id (urutan tetap mencegah deadlock).
+	// Barang yang sudah dihapus tidak ikut di hasil.
+	FindByIDsForUpdate(ctx context.Context, ids []uint) ([]entity.Item, error)
 }

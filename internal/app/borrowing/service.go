@@ -2,7 +2,6 @@ package borrowing
 
 import (
 	"context"
-	"fmt"
 	"slices"
 	"strings"
 	"time"
@@ -31,6 +30,7 @@ type borrowingService struct {
 	logRepo     contracts.UserLogRepository
 	itemRepo    contracts.ItemRepository
 	lembagaRepo contracts.LembagaRepository
+	tx          contracts.Transactor // menjalankan beberapa repository dalam satu transaksi (ACC/REJECT)
 }
 
 // NewBorrowingService membuat service peminjaman. Repository dioper dari main.go (dependency injection).
@@ -39,8 +39,9 @@ func NewBorrowingService(
 	logRepo contracts.UserLogRepository,
 	itemRepo contracts.ItemRepository,
 	lembagaRepo contracts.LembagaRepository,
+	tx contracts.Transactor,
 ) contracts.BorrowingService {
-	return &borrowingService{repo: repo, logRepo: logRepo, itemRepo: itemRepo, lembagaRepo: lembagaRepo}
+	return &borrowingService{repo: repo, logRepo: logRepo, itemRepo: itemRepo, lembagaRepo: lembagaRepo, tx: tx}
 }
 
 // CreateBorrowing menjalankan alur submit pengajuan:
@@ -185,9 +186,8 @@ func (s *borrowingService) buildBorrowingItems(ctx context.Context, reqItems []d
 	items := make([]entity.BorrowingItem, 0, len(reqItems))
 	for _, it := range reqItems {
 		item := byID[it.ItemID]
-		if it.Quantity > item.AvailableQuantity {
-			shortages = append(shortages,
-				fmt.Sprintf("%s (diminta %d, tersedia %d)", item.Name, it.Quantity, item.AvailableQuantity))
+		if !item.CanLend(it.Quantity) {
+			shortages = append(shortages, entity.LendShortage(item.Name, it.Quantity, item.AvailableQuantity))
 			continue
 		}
 		items = append(items, entity.NewBorrowingItem(item.ID, item.Name, it.Quantity))

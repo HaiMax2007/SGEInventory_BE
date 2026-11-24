@@ -58,6 +58,13 @@ type BorrowingResponse struct {
 	UpdatedAt  time.Time               `json:"updatedAt"`
 }
 
+// ApproveBorrowingResponse adalah hasil ACC: pengajuan yang disetujui (detail + timeline) dan id pengajuan
+// PENDING lain yang ikut ditolak otomatis karena stoknya tidak cukup lagi ([] jika tidak ada).
+type ApproveBorrowingResponse struct {
+	Borrowing       BorrowingResponse `json:"borrowing"`
+	AutoRejectedIDs []uint            `json:"autoRejectedIds"`
+}
+
 // NewBorrowingResponse mengubah entity.Borrowing menjadi BorrowingResponse (tanpa timeline).
 func NewBorrowingResponse(b *entity.Borrowing) BorrowingResponse {
 	items := make([]BorrowingItemResponse, 0, len(b.Items))

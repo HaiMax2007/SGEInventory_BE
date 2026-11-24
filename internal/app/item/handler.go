@@ -83,7 +83,8 @@ func (h *ItemHandler) Update(c fiber.Ctx) error {
 		return errx.Validation(err)
 	}
 
-	res, err := h.svc.UpdateItem(c.Context(), id, req)
+	adminID := fiber.Locals[uint](c, "userID") // pelaku jika ada pengajuan yang ditolak otomatis
+	res, err := h.svc.UpdateItem(c.Context(), id, adminID, req)
 	if err != nil {
 		return err
 	}

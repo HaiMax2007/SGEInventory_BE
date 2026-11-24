@@ -13,6 +13,7 @@ const (
 	ActivitySubmitted       = "SUBMITTED"        // user mengirim pengajuan
 	ActivityApproved        = "APPROVED"         // admin menyetujui pengajuan
 	ActivityRejected        = "REJECTED"         // admin menolak pengajuan
+	ActivityAutoRejected    = "AUTO_REJECTED"    // ditolak otomatis: stok tidak cukup lagi (pelaku = admin pemicunya)
 	ActivityReturnSubmitted = "RETURN_SUBMITTED" // user mengajukan pengembalian
 	ActivityReturnApproved  = "RETURN_APPROVED"  // admin menyetujui pengembalian
 	ActivityReturnRejected  = "RETURN_REJECTED"  // admin menolak pengembalian

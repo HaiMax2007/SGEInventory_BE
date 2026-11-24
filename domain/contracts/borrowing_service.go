@@ -17,4 +17,21 @@ type BorrowingService interface {
 	GetBorrowings(ctx context.Context, query dto.BorrowingListQuery) ([]dto.BorrowingResponse, *pagination.Pagination, error)
 	// GetBorrowing mengambil detail + timeline. Hanya pemilik atau admin yang boleh melihat.
 	GetBorrowing(ctx context.Context, id, userID uint, isAdmin bool) (*dto.BorrowingResponse, error)
+
+	// ApproveBorrowing (admin): kurangi stok, status APPROVED, lalu tolak otomatis pengajuan PENDING lain
+	// yang stoknya kini tidak cukup.
+	ApproveBorrowing(ctx context.Context, id, adminID uint) (*dto.ApproveBorrowingResponse, error)
+	// RejectBorrowing (admin): status REJECTED, stok tidak berubah.
+	RejectBorrowing(ctx context.Context, id, adminID uint) (*dto.BorrowingResponse, error)
+
+	PendingBorrowingRejecter
+}
+
+// PendingBorrowingRejecter menolak otomatis pengajuan PENDING yang tidak bisa dipenuhi lagi karena stok
+// barangnya berkurang. Dipakai saat ACC dan saat admin mengurangi total barang (ItemService),
+// jadi dibuat interface kecil sendiri: ItemService cukup bergantung pada kemampuan ini saja.
+type PendingBorrowingRejecter interface {
+	// RejectUnfulfillablePending memeriksa pengajuan PENDING yang memuat itemIDs. Yang jumlahnya melebihi
+	// stok tersedia diubah ke REJECTED + log AUTO_REJECTED dengan pelaku actorID. Hasil: id yang ditolak.
+	RejectUnfulfillablePending(ctx context.Context, itemIDs []uint, actorID uint) ([]uint, error)
 }
