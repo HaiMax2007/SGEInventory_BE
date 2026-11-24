@@ -16,6 +16,7 @@ func TestLocalStorage_SaveAndDelete(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "uploads") // folder belum ada: dibuat NewLocalStorage
 	s, err := storage.NewLocalStorage(dir)
 	mustNoErr(t, err)
+	t.Cleanup(func() { _ = s.Close() }) // ditutup sebelum t.TempDir() menghapus folder
 
 	// Save membuat folder returns/ otomatis.
 	mustNoErr(t, s.Save("returns/a.png", strings.NewReader("isi foto")))
@@ -44,6 +45,7 @@ func TestLocalStorage_RejectsPathOutsideRoot(t *testing.T) {
 	base := t.TempDir()
 	s, err := storage.NewLocalStorage(filepath.Join(base, "uploads"))
 	mustNoErr(t, err)
+	t.Cleanup(func() { _ = s.Close() })
 
 	if err := s.Save("../bocor.txt", strings.NewReader("x")); err == nil {
 		t.Error("Save(\"../bocor.txt\") = nil; want error")

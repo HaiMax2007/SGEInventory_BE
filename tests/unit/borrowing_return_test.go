@@ -122,8 +122,9 @@ func TestSubmitReturn_Success(t *testing.T) {
 			if last.RequestActivity != enums.ActivityReturnSubmitted || last.UserID != f.user.ID {
 				t.Errorf("log terakhir = %s oleh %d; want RETURN_SUBMITTED oleh peminjam", last.RequestActivity, last.UserID)
 			}
-			if len(res.Timeline) != len(logs) {
-				t.Errorf("timeline %d baris; want %d (sama dengan log)", len(res.Timeline), len(logs))
+			// Response unggah untuk user tidak memuat timeline (key "timeline" tidak muncul di JSON).
+			if res.Timeline != nil {
+				t.Errorf("timeline = %v; want nil (response unggah tanpa timeline)", res.Timeline)
 			}
 		})
 	}

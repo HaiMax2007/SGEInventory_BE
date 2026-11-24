@@ -34,6 +34,12 @@ func NewLocalStorage(dir string) (*LocalStorage, error) {
 
 var _ contracts.FileStorage = (*LocalStorage)(nil) // memastikan LocalStorage memenuhi interface
 
+// Close menutup folder unggahan. Server memakainya sampai mati, jadi Close terutama dipakai tes:
+// di Windows, folder yang masih terbuka tidak bisa dihapus.
+func (s *LocalStorage) Close() error {
+	return s.root.Close()
+}
+
 // Save menulis isi r ke file path (folder induknya dibuat otomatis). O_EXCL: gagal jika file sudah ada,
 // supaya file lain tidak pernah tertimpa. Jika penulisan gagal di tengah jalan, file setengah jadi dihapus.
 func (s *LocalStorage) Save(filePath string, r io.Reader) (err error) {

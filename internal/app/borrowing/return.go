@@ -43,6 +43,7 @@ var photoExtensions = map[string]string{
 //  1. cek foto (ukuran & jenis dari isi file)
 //  2. pengajuan harus milik user dan sedang dipinjam (APPROVED) atau fotonya baru ditolak (RETURN_REJECTED)
 //  3. simpan file dengan nama acak, lalu dalam SATU transaksi: status RETURN_PENDING + path foto + log
+//  4. balas data pengajuan TANPA timeline
 //
 // File disimpan sebelum transaksi (menulis file tidak bisa di-rollback). Jika transaksi gagal, file itu
 // dihapus lagi supaya tidak ada file yatim.
@@ -92,7 +93,14 @@ func (s *borrowingService) SubmitReturn(ctx context.Context, id, userID uint, re
 		return nil, err
 	}
 
-	return s.GetBorrowing(ctx, id, userID, false)
+	// Response untuk user tanpa timeline (sama seperti saat membuat pengajuan); riwayat lengkap
+	// tetap bisa dilihat lewat GET /api/borrowings/:id.
+	saved, err := s.repo.FindByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	res := dto.NewBorrowingResponse(saved)
+	return &res, nil
 }
 
 // ApproveReturn menyetujui pengembalian dalam SATU transaksi: kunci barang lalu pengajuan, pastikan masih
@@ -178,7 +186,7 @@ func (s *borrowingService) RejectReturn(ctx context.Context, id, adminID uint) (
 		s.deletePhoto(*oldPhoto)
 	}
 	return s.GetBorrowing(ctx, id, adminID, true)
-}		
+}
 
 // restockItems mengembalikan stok setiap barang di pengajuan. items adalah barang yang sudah dikunci.
 // Barang yang masih dipinjam tidak bisa dihapus admin, jadi barang yang hilang berarti data tidak wajar
