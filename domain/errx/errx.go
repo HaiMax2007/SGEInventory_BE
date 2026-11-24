@@ -56,7 +56,8 @@ func As(err error) (*DomainError, bool) {
 	return nil, false
 }
 
-// Validation membungkus error dari body JSON / validator menjadi 400 "Data tidak valid".
+// Validation membungkus error dari validator menjadi 400 "Data tidak valid".
+// Dipakai sebagai cadangan untuk field yang belum dipetakan di FieldErrors() DTO.
 // Detailnya (err) ikut dikirim ke client di field "error".
 func Validation(err error) *DomainError {
 	return &DomainError{Kind: KindInvalid, Code: "VALIDATION_ERROR", Message: "Data tidak valid", Err: err}

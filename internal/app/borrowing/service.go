@@ -3,9 +3,7 @@ package borrowing
 import (
 	"context"
 	"slices"
-	"strings"
 	"time"
-	"unicode/utf8"
 
 	"SGEInventory_BE/domain/contracts"
 	"SGEInventory_BE/domain/dto"
@@ -15,12 +13,9 @@ import (
 	"SGEInventory_BE/helpers/pagination"
 )
 
-// Batasan form peminjaman.
-const (
-	maxBorrowItems   = 20  // jenis barang per pengajuan
-	maxPurposeLength = 500 // karakter
-	maxBorrowDays    = 7   // tanggal kembali paling lambat tanggal ambil + 7 hari
-)
+// maxBorrowDays: tanggal kembali paling lambat tanggal ambil + 7 hari.
+// Batas lain (1-20 barang, tujuan 500 karakter) ada di tag `validate` dto.CreateBorrowingRequest.
+const maxBorrowDays = 7
 
 // wib dipakai untuk menentukan "hari ini" (UTC+7). FixedZone tidak butuh data zona waktu di container.
 var wib = time.FixedZone("WIB", 7*60*60)
@@ -46,7 +41,7 @@ func NewBorrowingService(
 
 // CreateBorrowing menjalankan alur submit pengajuan:
 //
-//  1. validasi isi form (tanpa database): items, lembaga, tujuan, tanggal
+//  1. cek aturan antar-field (tanpa database). Aturan per field sudah dicek handler lewat tag `validate`.
 //  2. lembaga harus ada
 //  3. barang harus ada & stoknya cukup
 //  4. simpan borrowings + borrowing_items + log_users dalam satu transaksi
@@ -198,62 +193,37 @@ func (s *borrowingService) buildBorrowingItems(ctx context.Context, reqItems []d
 	return items, nil
 }
 
-// borrowingForm adalah hasil validasi form yang sudah dirapikan (tujuan di-trim, tanggal sudah di-parse).
+// borrowingForm adalah hasil validasi form (tanggal sudah di-parse).
 type borrowingForm struct {
 	purpose    string
 	pickupDate time.Time
 	returnDate time.Time
 }
 
-// validateCreateRequest mengecek isi form tanpa menyentuh database.
-// Setiap aturan mengembalikan error sendiri (lihat domain/errx/borrowing_errx.go).
+// validateCreateRequest mengecek aturan yang membandingkan beberapa field sekaligus, tanpa menyentuh database.
+// Aturan per field (wajib diisi, 1-20 barang, jumlah > 0, tujuan maks 500 karakter, format tanggal) sudah dicek
+// lebih dulu di handler lewat tag `validate` (validator.ValidateStruct), yang juga sudah men-trim teks.
 // today adalah tanggal hari ini (WIB), dijadikan parameter agar mudah diuji.
 func validateCreateRequest(req dto.CreateBorrowingRequest, today time.Time) (*borrowingForm, error) {
-	// 1. Barang
-	if len(req.Items) == 0 {
-		return nil, errx.ErrBorrowItemsRequired
-	}
-	if len(req.Items) > maxBorrowItems {
-		return nil, errx.NewBorrowTooManyItems(maxBorrowItems)
-	}
+	// 1. Barang yang sama tidak boleh dipilih dua kali.
 	firstPosition := make(map[uint]int, len(req.Items)) // itemId → urutan pertama kali muncul
 	for i, it := range req.Items {
 		position := i + 1 // urutan untuk pesan error dimulai dari 1
-		if it.ItemID == 0 {
-			return nil, errx.NewBorrowItemIDRequired(position)
-		}
-		if it.Quantity <= 0 {
-			return nil, errx.NewBorrowQuantityInvalid(position)
-		}
 		if first, ok := firstPosition[it.ItemID]; ok {
 			return nil, errx.NewDuplicateBorrowItem(position, first)
 		}
 		firstPosition[it.ItemID] = position
 	}
 
-	// 2. Lembaga (keberadaannya dicek di database setelah ini)
-	if req.LembagaID == 0 {
-		return nil, errx.ErrBorrowLembagaRequired
-	}
-
-	// 3. Tujuan: spasi di awal/akhir dibuang, jadi "   " dianggap kosong.
-	purpose := strings.TrimSpace(req.Purpose)
-	if purpose == "" {
-		return nil, errx.ErrPurposeRequired
-	}
-	// Hitung karakter (rune), bukan byte, agar huruf non-ASCII tidak dihitung lebih dari satu.
-	if utf8.RuneCountInString(purpose) > maxPurposeLength {
-		return nil, errx.NewPurposeTooLong(maxPurposeLength)
-	}
-
-	// 4. Tanggal
-	pickupDate, err := parseDate(req.PickUpDate, errx.ErrPickupDateRequired, errx.ErrPickupDateInvalid)
+	// 2. Tanggal. Formatnya sudah dicek tag `datetime`, jadi gagal parse di sini hanya jika service
+	// dipanggil tanpa lewat handler.
+	pickupDate, err := time.Parse(dto.DateLayout, req.PickUpDate)
 	if err != nil {
-		return nil, err
+		return nil, errx.ErrInvalidPickupDate
 	}
-	returnDate, err := parseDate(req.ReturnDate, errx.ErrReturnDateRequired, errx.ErrReturnDateInvalid)
+	returnDate, err := time.Parse(dto.DateLayout, req.ReturnDate)
 	if err != nil {
-		return nil, err
+		return nil, errx.ErrInvalidReturnDate
 	}
 	if pickupDate.Before(today) {
 		return nil, errx.ErrPickupDatePast
@@ -265,23 +235,10 @@ func validateCreateRequest(req dto.CreateBorrowingRequest, today time.Time) (*bo
 		return nil, errx.NewBorrowTooLong(maxBorrowDays)
 	}
 
-	return &borrowingForm{purpose: purpose, pickupDate: pickupDate, returnDate: returnDate}, nil
+	return &borrowingForm{purpose: req.Purpose, pickupDate: pickupDate, returnDate: returnDate}, nil
 }
 
-// parseDate mengubah "YYYY-MM-DD" menjadi time.Time (jam 00:00 UTC).
-func parseDate(value string, errRequired, errInvalid *errx.DomainError) (time.Time, error) {
-	value = strings.TrimSpace(value)
-	if value == "" {
-		return time.Time{}, errRequired
-	}
-	date, err := time.Parse(dto.DateLayout, value)
-	if err != nil {
-		return time.Time{}, errInvalid
-	}
-	return date, nil
-}
-
-// todayWIB mengembalikan tanggal hari ini menurut WIB, dalam bentuk yang sama dengan parseDate
+// todayWIB mengembalikan tanggal hari ini menurut WIB, dalam bentuk yang sama dengan time.Parse(dto.DateLayout)
 // (jam 00:00 UTC) supaya bisa dibandingkan langsung.
 func todayWIB() time.Time {
 	now := time.Now().In(wib)

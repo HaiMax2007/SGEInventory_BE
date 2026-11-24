@@ -53,7 +53,7 @@ func TestRegister_Errors(t *testing.T) {
 		{
 			name:     "password lebih dari 72 byte",
 			req:      dto.RegisterUserRequest{FullName: "Budi", NIM: "2210511001", Email: "budi@mail.com", Password: strings.Repeat("a", 73)},
-			wantCode: "PASSWORD_TOO_LONG", wantKind: errx.KindInvalid,
+			wantCode: "INVALID_PASSWORD", wantKind: errx.KindInvalid,
 		},
 		{
 			name:     "email sudah dipakai (beda huruf besar/kecil)",
@@ -115,7 +115,7 @@ func TestUpdateUser(t *testing.T) {
 	t.Run("user tidak ada", func(t *testing.T) {
 		t.Parallel()
 		_, svc := newUserService()
-		_, err := svc.UpdateUser(t.Context(), 99, dto.UpdateUserRequest{FullName: "X"})
+		_, err := svc.UpdateUser(t.Context(), 99, dto.UpdateUserRequest{FullName: "Budi Baru"})
 		assertDomainError(t, err, "USER_NOT_FOUND", errx.KindNotFound)
 	})
 }

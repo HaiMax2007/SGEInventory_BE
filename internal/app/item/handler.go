@@ -25,10 +25,10 @@ func NewItemHandler(svc contracts.ItemService) *ItemHandler {
 func (h *ItemHandler) Create(c fiber.Ctx) error {
 	var req dto.CreateItemRequest
 	if err := c.Bind().Body(&req); err != nil {
-		return errx.Validation(err)
+		return errx.InvalidBody(err)
 	}
-	if err := validator.ValidateStruct(req); err != nil {
-		return errx.Validation(err)
+	if err := validator.ValidateStruct(&req); err != nil {
+		return err // sudah berupa errx (mis. errx.ErrInvalidEmail)
 	}
 
 	res, err := h.svc.CreateItem(c.Context(), req)
@@ -77,10 +77,10 @@ func (h *ItemHandler) Update(c fiber.Ctx) error {
 
 	var req dto.UpdateItemRequest
 	if err := c.Bind().Body(&req); err != nil {
-		return errx.Validation(err)
+		return errx.InvalidBody(err)
 	}
-	if err := validator.ValidateStruct(req); err != nil {
-		return errx.Validation(err)
+	if err := validator.ValidateStruct(&req); err != nil {
+		return err // sudah berupa errx (mis. errx.ErrInvalidEmail)
 	}
 
 	adminID := fiber.Locals[uint](c, "userID") // pelaku jika ada pengajuan yang ditolak otomatis

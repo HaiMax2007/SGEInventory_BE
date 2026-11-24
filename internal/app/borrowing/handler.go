@@ -10,6 +10,7 @@ import (
 	"SGEInventory_BE/domain/enums"
 	"SGEInventory_BE/domain/errx"
 	"SGEInventory_BE/pkg/response"
+	"SGEInventory_BE/pkg/validator"
 )
 
 // BorrowingHandler menerima request HTTP peminjaman, memanggil service, lalu membalas JSON.
@@ -22,11 +23,14 @@ func NewBorrowingHandler(svc contracts.BorrowingService) *BorrowingHandler {
 }
 
 // Create: POST /api/borrowings (khusus role USER)
-// Tidak memakai validator.ValidateStruct: semua aturan dicek di service dengan pesan error masing-masing.
+// Aturan per field dicek lewat tag `validate` (validator.ValidateStruct); aturan antar-field di service.
 func (h *BorrowingHandler) Create(c fiber.Ctx) error {
 	var req dto.CreateBorrowingRequest
 	if err := c.Bind().Body(&req); err != nil {
-		return errx.Validation(err) // JSON rusak atau tipe data salah (mis. quantity berupa teks)
+		return errx.InvalidBody(err) // JSON rusak atau tipe data salah (mis. quantity berupa teks)
+	}
+	if err := validator.ValidateStruct(&req); err != nil {
+		return err // sudah berupa errx (mis. errx.ErrInvalidPurpose)
 	}
 
 	userID := fiber.Locals[uint](c, "userID") // peminjam = pemilik token, diisi middlewares.Protected

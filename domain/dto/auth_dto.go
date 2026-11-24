@@ -1,11 +1,24 @@
 package dto
 
-import "github.com/golang-jwt/jwt/v5"
+import (
+	"github.com/golang-jwt/jwt/v5"
+
+	"SGEInventory_BE/domain/errx"
+)
 
 // LoginRequest adalah isi body POST /api/auth/login.
+// Password diberi `trim:"-"`: spasi tidak dibuang karena bisa saja bagian dari password.
 type LoginRequest struct {
 	Email    string `json:"email" validate:"required,email"`
-	Password string `json:"password" validate:"required"`
+	Password string `json:"password" validate:"required" trim:"-"`
+}
+
+// FieldErrors memetakan field yang gagal validasi ke error-nya (dipakai validator.ValidateStruct).
+func (LoginRequest) FieldErrors() map[string]error {
+	return map[string]error{
+		"Email":    errx.ErrInvalidEmail,
+		"Password": errx.ErrInvalidPassword,
+	}
 }
 
 // LoginResponse adalah isi "data" saat login berhasil.

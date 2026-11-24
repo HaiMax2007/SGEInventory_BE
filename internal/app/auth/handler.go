@@ -23,10 +23,10 @@ func NewAuthHandler(svc contracts.AuthService) *AuthHandler {
 func (h *AuthHandler) Login(c fiber.Ctx) error {
 	var req dto.LoginRequest
 	if err := c.Bind().Body(&req); err != nil {
-		return errx.Validation(err)
+		return errx.InvalidBody(err)
 	}
-	if err := validator.ValidateStruct(req); err != nil {
-		return errx.Validation(err)
+	if err := validator.ValidateStruct(&req); err != nil {
+		return err // sudah berupa errx (mis. errx.ErrInvalidEmail)
 	}
 
 	res, err := h.svc.Login(c.Context(), req)

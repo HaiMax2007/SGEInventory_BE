@@ -129,6 +129,7 @@ func TestErrorHandler(t *testing.T) {
 	app := fiber.New(fiber.Config{ErrorHandler: middlewares.ErrorHandler})
 	routes := map[string]error{
 		"/invalid":    errx.ErrInvalidID,
+		"/body":       errx.ErrInvalidBody,
 		"/validation": errx.Validation(errors.New("detail validasi")),
 		"/auth":       errx.ErrTokenMissing,
 		"/forbidden":  errx.ErrAdminOnly,
@@ -147,6 +148,7 @@ func TestErrorHandler(t *testing.T) {
 		wantError   string
 	}{
 		{path: "/invalid", wantStatus: 400, wantMessage: "ID tidak valid"},
+		{path: "/body", wantStatus: 400, wantMessage: "Format data tidak valid, kirim body JSON yang benar"},
 		{path: "/validation", wantStatus: 400, wantMessage: "Data tidak valid", wantError: "detail validasi"},
 		{path: "/auth", wantStatus: 401, wantMessage: "Token tidak ada"},
 		{path: "/forbidden", wantStatus: 403, wantMessage: "Hanya admin yang boleh mengakses"},
@@ -154,7 +156,7 @@ func TestErrorHandler(t *testing.T) {
 		{path: "/conflict", wantStatus: 409, wantMessage: "Email sudah terdaftar"},
 		// error tak dikenal: detail (mis. info database) TIDAK boleh bocor ke client
 		{path: "/internal", wantStatus: 500, wantMessage: "Terjadi kesalahan pada server"},
-		{path: "/tidak-ada", wantStatus: 404}, // route tidak terdaftar → *fiber.Error
+		{path: "/tidak-ada", wantStatus: 404, wantMessage: "Endpoint tidak ditemukan"}, // route tidak terdaftar → *fiber.Error
 	}
 	for _, tt := range tests {
 		status, body := doRequest(t, app, tt.path, "")
@@ -168,8 +170,9 @@ func TestErrorHandler(t *testing.T) {
 		if tt.wantMessage != "" && res.Message != tt.wantMessage {
 			t.Errorf("GET %s message = %q; want %q", tt.path, res.Message, tt.wantMessage)
 		}
-		if res.Error != tt.wantError {
-			t.Errorf("GET %s error = %q; want %q", tt.path, res.Error, tt.wantError)
+		// Field "error" hanya terisi untuk errx.Validation; error lain (mis. info database) tidak bocor.
+		if res.Error != tt.wantError || strings.Contains(body, "pq:") {
+			t.Errorf("GET %s body = %s; want error %q", tt.path, body, tt.wantError)
 		}
 	}
 }

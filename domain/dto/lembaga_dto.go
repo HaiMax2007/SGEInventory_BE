@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"SGEInventory_BE/domain/entity"
+	"SGEInventory_BE/domain/errx"
 )
 
 // CreateLembagaRequest adalah isi body POST /api/lembaga.
@@ -11,10 +12,20 @@ type CreateLembagaRequest struct {
 	Name string `json:"name" validate:"required,min=2,max=150"`
 }
 
+// FieldErrors memetakan field yang gagal validasi ke error-nya (dipakai validator.ValidateStruct).
+func (CreateLembagaRequest) FieldErrors() map[string]error {
+	return map[string]error{"Name": errx.ErrInvalidLembagaName}
+}
+
 // UpdateLembagaRequest adalah isi body PUT /api/lembaga/:id.
 // Lembaga hanya punya satu field yang bisa diubah, jadi name tetap wajib diisi.
 type UpdateLembagaRequest struct {
 	Name string `json:"name" validate:"required,min=2,max=150"`
+}
+
+// FieldErrors memetakan field yang gagal validasi ke error-nya (dipakai validator.ValidateStruct).
+func (UpdateLembagaRequest) FieldErrors() map[string]error {
+	return map[string]error{"Name": errx.ErrInvalidLembagaName}
 }
 
 // LembagaListQuery adalah query string GET /api/lembaga?page=1&limit=10&search=bem.

@@ -30,7 +30,6 @@ func TestCreateBorrowing_Success(t *testing.T) {
 		dto.BorrowingItemRequest{ItemID: proyektor.ID, Quantity: 5}, // tepat sebanyak stok: boleh
 		dto.BorrowingItemRequest{ItemID: kabel.ID, Quantity: 1},
 	)
-	req.Purpose = "  Seminar nasional  "
 	req.PickUpDate = dateWIB(0) // hari ini boleh
 	req.ReturnDate = dateWIB(7) // maksimal +7 hari
 
@@ -38,7 +37,7 @@ func TestCreateBorrowing_Success(t *testing.T) {
 	mustNoErr(t, err)
 
 	if res.Status != enums.BorrowingPending || res.Purpose != "Seminar nasional" {
-		t.Errorf("status %q purpose %q; want PENDING dan tujuan tanpa spasi di awal/akhir", res.Status, res.Purpose)
+		t.Errorf("status %q purpose %q; want PENDING dan tujuan dari form", res.Status, res.Purpose)
 	}
 	if res.User == nil || res.User.ID != f.user.ID || res.Lembaga == nil || res.Lembaga.ID != f.lembaga.ID {
 		t.Errorf("user %+v lembaga %+v; want peminjam dari token & lembaga dari form", res.User, res.Lembaga)
@@ -56,18 +55,8 @@ func TestCreateBorrowing_Success(t *testing.T) {
 	}
 }
 
-func TestCreateBorrowing_PurposeCountsCharactersNotBytes(t *testing.T) {
-	t.Parallel()
-	f := newBorrowingFixture(t)
-	it := f.db.addItem("Proyektor", 5, 5, f.lembaga.ID)
-
-	req := validRequest(f.lembaga.ID, dto.BorrowingItemRequest{ItemID: it.ID, Quantity: 1})
-	req.Purpose = strings.Repeat("é", 500) // 500 karakter, tapi 1000 byte
-	_, err := f.svc.CreateBorrowing(t.Context(), f.user.ID, req)
-	mustNoErr(t, err)
-}
-
-// Setiap aturan punya error sendiri. Untuk semua kasus gagal: tidak ada data yang tersimpan.
+// Aturan antar-field & data di database. Aturan per field (tag `validate`) diuji di validator_test.go,
+// karena dicek di handler sebelum service dipanggil. Untuk semua kasus gagal: tidak ada data yang tersimpan.
 func TestCreateBorrowing_Errors(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -78,48 +67,15 @@ func TestCreateBorrowing_Errors(t *testing.T) {
 		wantMessage string // potongan pesan yang harus ada (opsional)
 	}{
 		// --- barang ---
-		{name: "items kosong", change: func(r *dto.CreateBorrowingRequest, _, _ uint) { r.Items = nil },
-			wantCode: "BORROW_ITEMS_REQUIRED", wantKind: errx.KindInvalid},
-		{name: "lebih dari 20 jenis", change: func(r *dto.CreateBorrowingRequest, a, _ uint) {
-			r.Items = nil
-			for i := range 21 {
-				r.Items = append(r.Items, dto.BorrowingItemRequest{ItemID: a + uint(i)*1000, Quantity: 1})
-			}
-		}, wantCode: "BORROW_TOO_MANY_ITEMS", wantKind: errx.KindInvalid, wantMessage: "Maksimal 20"},
-		{name: "itemId kosong di barang ke-2", change: func(r *dto.CreateBorrowingRequest, a, _ uint) {
-			r.Items = []dto.BorrowingItemRequest{{ItemID: a, Quantity: 1}, {ItemID: 0, Quantity: 1}}
-		}, wantCode: "BORROW_ITEM_ID_REQUIRED", wantKind: errx.KindInvalid, wantMessage: "Barang ke-2"},
-		{name: "quantity 0", change: func(r *dto.CreateBorrowingRequest, a, _ uint) {
-			r.Items = []dto.BorrowingItemRequest{{ItemID: a, Quantity: 0}}
-		}, wantCode: "BORROW_QUANTITY_INVALID", wantKind: errx.KindInvalid, wantMessage: "barang ke-1"},
-		{name: "quantity negatif", change: func(r *dto.CreateBorrowingRequest, a, _ uint) {
-			r.Items = []dto.BorrowingItemRequest{{ItemID: a, Quantity: -2}}
-		}, wantCode: "BORROW_QUANTITY_INVALID", wantKind: errx.KindInvalid},
 		{name: "barang dobel", change: func(r *dto.CreateBorrowingRequest, a, b uint) {
 			r.Items = []dto.BorrowingItemRequest{{ItemID: a, Quantity: 1}, {ItemID: b, Quantity: 1}, {ItemID: a, Quantity: 2}}
 		}, wantCode: "DUPLICATE_BORROW_ITEM", wantKind: errx.KindInvalid, wantMessage: "Barang ke-3 sama dengan barang ke-1"},
 
 		// --- lembaga ---
-		{name: "lembaga kosong", change: func(r *dto.CreateBorrowingRequest, _, _ uint) { r.LembagaID = 0 },
-			wantCode: "BORROW_LEMBAGA_REQUIRED", wantKind: errx.KindInvalid},
 		{name: "lembaga tidak ada", change: func(r *dto.CreateBorrowingRequest, _, _ uint) { r.LembagaID = 999 },
 			wantCode: "LEMBAGA_NOT_FOUND", wantKind: errx.KindNotFound},
 
-		// --- tujuan ---
-		{name: "tujuan hanya spasi", change: func(r *dto.CreateBorrowingRequest, _, _ uint) { r.Purpose = "   " },
-			wantCode: "PURPOSE_REQUIRED", wantKind: errx.KindInvalid},
-		{name: "tujuan 501 karakter", change: func(r *dto.CreateBorrowingRequest, _, _ uint) { r.Purpose = strings.Repeat("a", 501) },
-			wantCode: "PURPOSE_TOO_LONG", wantKind: errx.KindInvalid, wantMessage: "500"},
-
 		// --- tanggal ---
-		{name: "tanggal ambil kosong", change: func(r *dto.CreateBorrowingRequest, _, _ uint) { r.PickUpDate = "" },
-			wantCode: "PICKUP_DATE_REQUIRED", wantKind: errx.KindInvalid},
-		{name: "format tanggal ambil salah", change: func(r *dto.CreateBorrowingRequest, _, _ uint) { r.PickUpDate = "25-11-2026" },
-			wantCode: "PICKUP_DATE_INVALID", wantKind: errx.KindInvalid},
-		{name: "tanggal kembali kosong", change: func(r *dto.CreateBorrowingRequest, _, _ uint) { r.ReturnDate = " " },
-			wantCode: "RETURN_DATE_REQUIRED", wantKind: errx.KindInvalid},
-		{name: "format tanggal kembali salah", change: func(r *dto.CreateBorrowingRequest, _, _ uint) { r.ReturnDate = "besok" },
-			wantCode: "RETURN_DATE_INVALID", wantKind: errx.KindInvalid},
 		{name: "ambil kemarin", change: func(r *dto.CreateBorrowingRequest, _, _ uint) { r.PickUpDate = dateWIB(-1) },
 			wantCode: "PICKUP_DATE_PAST", wantKind: errx.KindInvalid},
 		{name: "kembali di hari yang sama", change: func(r *dto.CreateBorrowingRequest, _, _ uint) { r.ReturnDate = r.PickUpDate },

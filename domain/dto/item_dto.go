@@ -4,15 +4,22 @@ import (
 	"time"
 
 	"SGEInventory_BE/domain/entity"
+	"SGEInventory_BE/domain/errx"
 )
 
 // CreateItemRequest adalah isi body POST /api/items. Description opsional, lembagaId wajib.
 // "required" pada uint berarti tidak boleh 0 (0 = tidak dikirim).
+// TotalQuantity sengaja TIDAK "required": pada angka, required menolak 0, padahal total 0 boleh.
 type CreateItemRequest struct {
 	Name          string `json:"name" validate:"required,min=2,max=255"`
 	Description   string `json:"description" validate:"omitempty,max=1000"`
 	LembagaID     uint   `json:"lembagaId" validate:"required"`
-	TotalQuantity int    `json:"totalQuantity" validate:"required"`
+	TotalQuantity int    `json:"totalQuantity" validate:"gte=0,lte=1000000"`
+}
+
+// FieldErrors memetakan field yang gagal validasi ke error-nya (dipakai validator.ValidateStruct).
+func (CreateItemRequest) FieldErrors() map[string]error {
+	return itemFieldErrors()
 }
 
 // UpdateItemRequest adalah isi body PUT /api/items/:id. Semua field opsional.
@@ -26,6 +33,21 @@ type UpdateItemRequest struct {
 	Description   *string `json:"description" validate:"omitempty,max=1000"`
 	LembagaID     *uint   `json:"lembagaId" validate:"omitempty,gt=0"`
 	TotalQuantity *int    `json:"totalQuantity" validate:"omitempty,gte=0,lte=1000000"`
+}
+
+// FieldErrors memetakan field yang gagal validasi ke error-nya (dipakai validator.ValidateStruct).
+func (UpdateItemRequest) FieldErrors() map[string]error {
+	return itemFieldErrors()
+}
+
+// itemFieldErrors dipakai bersama form tambah & ubah barang (nama field-nya sama).
+func itemFieldErrors() map[string]error {
+	return map[string]error{
+		"Name":          errx.ErrInvalidItemName,
+		"Description":   errx.ErrInvalidItemDescription,
+		"LembagaID":     errx.ErrInvalidItemLembaga,
+		"TotalQuantity": errx.ErrInvalidItemTotal,
+	}
 }
 
 // ItemListQuery adalah query string GET /api/items?page=1&limit=10&search=kabel&available=true.

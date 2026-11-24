@@ -13,7 +13,8 @@ import (
 	"SGEInventory_BE/helpers/pagination"
 )
 
-// bcrypt hanya bisa menerima password maksimal 72 byte.
+// bcrypt hanya bisa menerima password maksimal 72 byte. Tag validate "max=72" menghitung KARAKTER,
+// padahal huruf seperti "é" panjangnya 2 byte, jadi batas byte tetap dicek di service.
 const maxPasswordBytes = 72
 
 type userService struct {
@@ -26,8 +27,8 @@ func NewUserService(repo contracts.UserRepository) contracts.UserService {
 }
 
 func (s *userService) Register(ctx context.Context, req dto.RegisterUserRequest) (*dto.UserResponse, error) {
-	if len(req.Password) > maxPasswordBytes {
-		return nil, errx.ErrPasswordTooLong
+	if len(req.Password) > maxPasswordBytes { // len() = byte, bukan karakter
+		return nil, errx.ErrInvalidPassword
 	}
 
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)

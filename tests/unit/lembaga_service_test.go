@@ -46,7 +46,7 @@ func TestUpdateLembaga(t *testing.T) {
 	_, err = svc.UpdateLembaga(t.Context(), bem.ID, dto.UpdateLembagaRequest{Name: "DPM"})
 	assertDomainError(t, err, "LEMBAGA_NAME_TAKEN", errx.KindConflict)
 
-	_, err = svc.UpdateLembaga(t.Context(), 999, dto.UpdateLembagaRequest{Name: "X"})
+	_, err = svc.UpdateLembaga(t.Context(), 999, dto.UpdateLembagaRequest{Name: "HIMA"})
 	assertDomainError(t, err, "LEMBAGA_NOT_FOUND", errx.KindNotFound)
 }
 

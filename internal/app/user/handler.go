@@ -27,10 +27,10 @@ func NewUserHandler(svc contracts.UserService) *UserHandler {
 func (h *UserHandler) Register(c fiber.Ctx) error {
 	var req dto.RegisterUserRequest
 	if err := c.Bind().Body(&req); err != nil {
-		return errx.Validation(err)
+		return errx.InvalidBody(err)
 	}
-	if err := validator.ValidateStruct(req); err != nil {
-		return errx.Validation(err)
+	if err := validator.ValidateStruct(&req); err != nil {
+		return err // sudah berupa errx (mis. errx.ErrInvalidEmail)
 	}
 
 	res, err := h.svc.Register(c.Context(), req)
@@ -85,10 +85,10 @@ func (h *UserHandler) Update(c fiber.Ctx) error {
 
 	var req dto.UpdateUserRequest
 	if err := c.Bind().Body(&req); err != nil {
-		return errx.Validation(err)
+		return errx.InvalidBody(err)
 	}
-	if err := validator.ValidateStruct(req); err != nil {
-		return errx.Validation(err)
+	if err := validator.ValidateStruct(&req); err != nil {
+		return err // sudah berupa errx (mis. errx.ErrInvalidEmail)
 	}
 
 	res, err := h.svc.UpdateUser(c.Context(), id, req)

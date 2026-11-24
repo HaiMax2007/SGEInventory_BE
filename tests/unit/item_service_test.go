@@ -123,7 +123,7 @@ func TestUpdateItem_Errors_NothingSaved(t *testing.T) {
 	t.Run("barang tidak ada", func(t *testing.T) {
 		t.Parallel()
 		f := newItemFixture()
-		_, err := f.svc.UpdateItem(t.Context(), 999, adminID, dto.UpdateItemRequest{Name: "X"})
+		_, err := f.svc.UpdateItem(t.Context(), 999, adminID, dto.UpdateItemRequest{Name: "Kabel"})
 		assertDomainError(t, err, "ITEM_NOT_FOUND", errx.KindNotFound)
 	})
 }

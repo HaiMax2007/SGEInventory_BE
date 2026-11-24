@@ -4,27 +4,44 @@ import (
 	"time"
 
 	"SGEInventory_BE/domain/entity"
+	"SGEInventory_BE/domain/errx"
 )
 
 // DateLayout adalah format tanggal (tanpa jam) yang dipakai FE & BE, mis. "2026-11-25".
 const DateLayout = "2006-01-02"
 
-// CreateBorrowingRequest adalah isi body POST /api/borrowings.
-// Sengaja tanpa tag `validate`: tiap aturan dicek di service agar setiap kesalahan punya pesan sendiri
-// (lihat domain/errx/borrowing_errx.go). Peminjam tidak ada di body, tapi diambil dari token.
+// CreateBorrowingRequest adalah isi body POST /api/borrowings. Peminjam tidak ada di body, tapi diambil dari token.
+//
+// Aturan per field ada di tag `validate` (urutan field = urutan pengecekan, error pertama yang dikirim).
+// "dive" berarti setiap barang di dalam items ikut dicek dengan tag milik BorrowingItemRequest.
+// Aturan antar-field (barang dobel, tanggal lewat, kembali setelah ambil, maksimal 7 hari) dicek di service.
 type CreateBorrowingRequest struct {
-	LembagaID  uint                   `json:"lembagaId"`
-	Purpose    string                 `json:"purpose"`
-	PickUpDate string                 `json:"pickUpDate"` // "YYYY-MM-DD"
-	ReturnDate string                 `json:"returnDate"` // "YYYY-MM-DD"
-	Items      []BorrowingItemRequest `json:"items"`
+	Items      []BorrowingItemRequest `json:"items" validate:"required,min=1,max=20,dive"`
+	LembagaID  uint                   `json:"lembagaId" validate:"required"`
+	Purpose    string                 `json:"purpose" validate:"required,max=500"`
+	PickUpDate string                 `json:"pickUpDate" validate:"required,datetime=2006-01-02"` // "YYYY-MM-DD"
+	ReturnDate string                 `json:"returnDate" validate:"required,datetime=2006-01-02"` // "YYYY-MM-DD"
+}
+
+// FieldErrors memetakan field yang gagal validasi ke error-nya (dipakai validator.ValidateStruct).
+// ItemID & Quantity adalah field di dalam setiap barang (BorrowingItemRequest).
+func (CreateBorrowingRequest) FieldErrors() map[string]error {
+	return map[string]error{
+		"Items":      errx.ErrInvalidBorrowItems,
+		"ItemID":     errx.ErrInvalidBorrowItems,
+		"Quantity":   errx.ErrInvalidBorrowItems,
+		"LembagaID":  errx.ErrInvalidBorrowLembaga,
+		"Purpose":    errx.ErrInvalidPurpose,
+		"PickUpDate": errx.ErrInvalidPickupDate,
+		"ReturnDate": errx.ErrInvalidReturnDate,
+	}
 }
 
 // BorrowingItemRequest adalah satu barang di dalam "items". Nama barang tidak dikirim FE;
 // BE mengambilnya dari database.
 type BorrowingItemRequest struct {
-	ItemID   uint `json:"itemId"`
-	Quantity int  `json:"quantity"`
+	ItemID   uint `json:"itemId" validate:"required"`
+	Quantity int  `json:"quantity" validate:"gt=0"`
 }
 
 // BorrowingListQuery adalah query string daftar pengajuan:

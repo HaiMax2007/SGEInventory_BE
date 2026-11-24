@@ -25,10 +25,10 @@ func NewLembagaHandler(svc contracts.LembagaService) *LembagaHandler {
 func (h *LembagaHandler) Create(c fiber.Ctx) error {
 	var req dto.CreateLembagaRequest
 	if err := c.Bind().Body(&req); err != nil {
-		return errx.Validation(err)
+		return errx.InvalidBody(err)
 	}
-	if err := validator.ValidateStruct(req); err != nil {
-		return errx.Validation(err)
+	if err := validator.ValidateStruct(&req); err != nil {
+		return err // sudah berupa errx (mis. errx.ErrInvalidEmail)
 	}
 
 	res, err := h.svc.CreateLembaga(c.Context(), req)
@@ -76,10 +76,10 @@ func (h *LembagaHandler) Update(c fiber.Ctx) error {
 
 	var req dto.UpdateLembagaRequest
 	if err := c.Bind().Body(&req); err != nil {
-		return errx.Validation(err)
+		return errx.InvalidBody(err)
 	}
-	if err := validator.ValidateStruct(req); err != nil {
-		return errx.Validation(err)
+	if err := validator.ValidateStruct(&req); err != nil {
+		return err // sudah berupa errx (mis. errx.ErrInvalidEmail)
 	}
 
 	res, err := h.svc.UpdateLembaga(c.Context(), id, req)
