@@ -31,6 +31,9 @@ services:
       timeout: 5s
       retries: 3
       start_period: 15s
+    volumes:
+      # Foto pengembalian disimpan di /app/uploads; volume ini menjaga file tetap ada walau container dibuat ulang
+      - uploads_data:/app/uploads
 
   db:
     image: postgres:18-alpine
@@ -69,3 +72,4 @@ services:
 volumes:
   postgres_data:
   pgadmin_data:
+  uploads_data:
