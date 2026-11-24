@@ -1,6 +1,7 @@
 package dto
 
 import (
+	"mime/multipart"
 	"time"
 
 	"SGEInventory_BE/domain/entity"
@@ -70,9 +71,12 @@ type BorrowingResponse struct {
 	User       *UserSummary            `json:"user"` // peminjam (pemilik pengajuan)
 	Lembaga    *LembagaSummary         `json:"lembaga"`
 	Items      []BorrowingItemResponse `json:"items"`
-	Timeline   []UserLogResponse       `json:"timeline,omitempty"`
-	CreatedAt  time.Time               `json:"createdAt"`
-	UpdatedAt  time.Time               `json:"updatedAt"`
+	// ReturnPhotoURL: alamat foto bukti pengembalian, mis. "/uploads/returns/8f3a...jpg"
+	// (gabungkan dengan alamat API di FE). null jika belum ada foto.
+	ReturnPhotoURL *string           `json:"returnPhotoUrl"`
+	Timeline       []UserLogResponse `json:"timeline,omitempty"`
+	CreatedAt      time.Time         `json:"createdAt"`
+	UpdatedAt      time.Time         `json:"updatedAt"`
 }
 
 // ApproveBorrowingResponse adalah hasil ACC: pengajuan yang disetujui (detail + timeline) dan id pengajuan
@@ -90,15 +94,39 @@ func NewBorrowingResponse(b *entity.Borrowing) BorrowingResponse {
 	}
 
 	return BorrowingResponse{
-		ID:         b.ID,
-		Status:     b.Status,
-		Purpose:    b.Purpose,
-		PickUpDate: b.PickupDate.Format(DateLayout),
-		ReturnDate: b.ReturnDate.Format(DateLayout),
-		User:       NewUserSummary(b.User),
-		Lembaga:    NewLembagaSummary(b.Lembaga),
-		Items:      items,
-		CreatedAt:  b.CreatedAt,
-		UpdatedAt:  b.UpdatedAt,
+		ID:             b.ID,
+		Status:         b.Status,
+		Purpose:        b.Purpose,
+		PickUpDate:     b.PickupDate.Format(DateLayout),
+		ReturnDate:     b.ReturnDate.Format(DateLayout),
+		User:           NewUserSummary(b.User),
+		Lembaga:        NewLembagaSummary(b.Lembaga),
+		Items:          items,
+		ReturnPhotoURL: uploadURL(b.ReturnPhoto),
+		CreatedAt:      b.CreatedAt,
+		UpdatedAt:      b.UpdatedAt,
 	}
+}
+
+// UploadsURLPrefix adalah awalan URL file unggahan. Route static di cmd/app/main.go memakai awalan yang sama.
+const UploadsURLPrefix = "/uploads/"
+
+// uploadURL mengubah path file (mis. "returns/a.jpg") menjadi URL ("/uploads/returns/a.jpg"). nil tetap nil.
+func uploadURL(path *string) *string {
+	if path == nil {
+		return nil
+	}
+	url := UploadsURLPrefix + *path
+	return &url
+}
+
+// SubmitReturnRequest adalah isi form POST /api/borrowings/:id/return (multipart/form-data, field "photo").
+// "required" hanya memastikan file dikirim; ukuran (maks 5 MB) & jenis gambar dicek service dari isi file.
+type SubmitReturnRequest struct {
+	Photo *multipart.FileHeader `validate:"required"`
+}
+
+// FieldErrors memetakan field yang gagal validasi ke error-nya (dipakai validator.ValidateStruct).
+func (SubmitReturnRequest) FieldErrors() map[string]error {
+	return map[string]error{"Photo": errx.ErrInvalidReturnPhoto}
 }

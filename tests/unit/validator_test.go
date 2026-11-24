@@ -111,6 +111,9 @@ func TestValidateStruct_MapsFieldToError(t *testing.T) {
 		{name: "pinjam tanggal ambil tidak ada (30 Feb)", input: withBorrow(validBorrow, func(b *dto.CreateBorrowingRequest) { b.PickUpDate = "2026-02-30" }), wantErr: errx.ErrInvalidPickupDate},
 		{name: "pinjam tanggal kembali hanya spasi", input: withBorrow(validBorrow, func(b *dto.CreateBorrowingRequest) { b.ReturnDate = " " }), wantErr: errx.ErrInvalidReturnDate},
 		{name: "pinjam format tanggal kembali salah", input: withBorrow(validBorrow, func(b *dto.CreateBorrowingRequest) { b.ReturnDate = "besok" }), wantErr: errx.ErrInvalidReturnDate},
+		// pengembalian (ukuran & jenis gambar dicek service, lihat borrowing_return_test.go)
+		{name: "pengembalian tanpa foto", input: &dto.SubmitReturnRequest{}, wantErr: errx.ErrInvalidReturnPhoto},
+
 		// yang dikirim error field PERTAMA: barang → lembaga → tujuan → tanggal
 		{name: "pinjam semua kosong → barang dulu", input: &dto.CreateBorrowingRequest{}, wantErr: errx.ErrInvalidBorrowItems},
 	}

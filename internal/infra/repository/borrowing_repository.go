@@ -117,6 +117,20 @@ func (r *borrowingRepository) UpdateStatus(ctx context.Context, borrowing *entit
 	return nil
 }
 
+// UpdateReturn: UPDATE borrowings SET status = ?, return_photo = ?, updated_at = NOW() WHERE id = ?.
+// Memakai map supaya return_photo nil benar-benar disimpan sebagai NULL (Updates dengan struct
+// melewati field kosong).
+func (r *borrowingRepository) UpdateReturn(ctx context.Context, borrowing *entity.Borrowing) error {
+	err := conn(ctx, r.db).Model(borrowing).Updates(map[string]any{
+		"status":       borrowing.Status,
+		"return_photo": borrowing.ReturnPhoto,
+	}).Error
+	if err != nil {
+		return fmt.Errorf("update borrowing %d return: %w", borrowing.ID, err)
+	}
+	return nil
+}
+
 // LockUnfulfillablePending menjalankan:
 //
 //	SELECT id FROM borrowings

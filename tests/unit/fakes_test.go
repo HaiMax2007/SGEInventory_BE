@@ -10,6 +10,7 @@ package unit
 import (
 	"context"
 	"fmt"
+	"io"
 	"maps"
 	"slices"
 	"strings"
@@ -40,6 +41,9 @@ type fakeDB struct {
 	// afterLockItems (opsional) dijalankan tepat setelah barang dikunci, untuk mensimulasikan
 	// admin lain yang memproses pengajuan di saat yang sama.
 	afterLockItems func()
+	// beforeLockBorrowing (opsional) dijalankan tepat sebelum pengajuan dikunci, untuk mensimulasikan
+	// permintaan lain yang mengubah status di antara cek cepat dan penguncian.
+	beforeLockBorrowing func()
 }
 
 func newFakeDB() *fakeDB {
@@ -509,6 +513,9 @@ func (r *fakeBorrowingRepo) FindAll(_ context.Context, status string, offset, li
 }
 
 func (r *fakeBorrowingRepo) FindByIDForUpdate(_ context.Context, id uint) (*entity.Borrowing, error) {
+	if r.db.beforeLockBorrowing != nil {
+		r.db.beforeLockBorrowing()
+	}
 	r.db.record("lock borrowing")
 	b, ok := r.db.borrowings[id]
 	if !ok {
@@ -521,6 +528,13 @@ func (r *fakeBorrowingRepo) FindByIDForUpdate(_ context.Context, id uint) (*enti
 
 func (r *fakeBorrowingRepo) UpdateStatus(_ context.Context, b *entity.Borrowing) error {
 	r.db.borrowings[b.ID].Status = b.Status
+	r.db.borrowings[b.ID].UpdatedAt = time.Now()
+	return nil
+}
+
+func (r *fakeBorrowingRepo) UpdateReturn(_ context.Context, b *entity.Borrowing) error {
+	r.db.borrowings[b.ID].Status = b.Status
+	r.db.borrowings[b.ID].ReturnPhoto = b.ReturnPhoto
 	r.db.borrowings[b.ID].UpdatedAt = time.Now()
 	return nil
 }
@@ -618,4 +632,43 @@ func (f *fakeRejecter) RejectUnfulfillablePending(_ context.Context, itemIDs []u
 		return nil, f.err
 	}
 	return []uint{}, nil
+}
+
+// ===================================================================================================
+// fakeStorage: memenuhi contracts.FileStorage (file disimpan di map, bukan di disk)
+// ===================================================================================================
+
+type fakeStorage struct {
+	files     map[string][]byte
+	deleted   []string // path yang pernah diminta dihapus, berurutan
+	saveErr   error    // jika diisi, Save gagal dengan error ini
+	deleteErr error    // jika diisi, Delete gagal dengan error ini
+}
+
+func newFakeStorage() *fakeStorage {
+	return &fakeStorage{files: map[string][]byte{}}
+}
+
+func (s *fakeStorage) Save(path string, r io.Reader) error {
+	if s.saveErr != nil {
+		return s.saveErr
+	}
+	if _, ok := s.files[path]; ok {
+		return fmt.Errorf("file %s sudah ada", path)
+	}
+	data, err := io.ReadAll(r)
+	if err != nil {
+		return err
+	}
+	s.files[path] = data
+	return nil
+}
+
+func (s *fakeStorage) Delete(path string) error {
+	s.deleted = append(s.deleted, path)
+	if s.deleteErr != nil {
+		return s.deleteErr
+	}
+	delete(s.files, path)
+	return nil
 }

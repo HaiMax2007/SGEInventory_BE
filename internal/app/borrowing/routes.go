@@ -6,8 +6,8 @@ import (
 	"SGEInventory_BE/internal/middlewares"
 )
 
-// RegisterRoutes mendaftarkan URL peminjaman. Semua butuh login; mengajukan hanya role USER,
-// melihat semua pengajuan serta ACC/menolak hanya ADMIN.
+// RegisterRoutes mendaftarkan URL peminjaman. Semua butuh login; mengajukan & mengembalikan hanya role USER,
+// melihat semua pengajuan serta ACC/menolak (peminjaman & pengembalian) hanya ADMIN.
 // "/me" didaftarkan sebelum "/:id", kalau tidak "me" akan dianggap sebagai :id.
 func RegisterRoutes(router fiber.Router, handler *BorrowingHandler, protected fiber.Handler) {
 	borrowings := router.Group("/borrowings", protected)
@@ -15,6 +15,13 @@ func RegisterRoutes(router fiber.Router, handler *BorrowingHandler, protected fi
 	borrowings.Get("/", middlewares.AdminOnly, handler.GetAll)
 	borrowings.Get("/me", handler.GetMine)
 	borrowings.Get("/:id", handler.GetByID)
+
+	// tahap 2: admin memproses pengajuan
 	borrowings.Patch("/:id/approve", middlewares.AdminOnly, handler.Approve)
 	borrowings.Patch("/:id/reject", middlewares.AdminOnly, handler.Reject)
+
+	// tahap 3: user mengunggah foto pengembalian, admin memprosesnya
+	borrowings.Post("/:id/return", middlewares.UserOnly, handler.SubmitReturn)
+	borrowings.Patch("/:id/return/approve", middlewares.AdminOnly, handler.ApproveReturn)
+	borrowings.Patch("/:id/return/reject", middlewares.AdminOnly, handler.RejectReturn)
 }

@@ -158,7 +158,7 @@ func TestBorrowingApproveAndReject(t *testing.T) {
 		})
 
 		// Setiap tahap hanya sekali: dari status selain PENDING selalu ditolak & status tidak berubah.
-		for _, from := range []string{enums.BorrowingApproved, enums.BorrowingRejected, enums.BorrowingReturnPending, enums.BorrowingReturned} {
+		for _, from := range []string{enums.BorrowingApproved, enums.BorrowingRejected, enums.BorrowingReturnPending, enums.BorrowingReturnRejected, enums.BorrowingReturned} {
 			t.Run(act.name+" dari "+from, func(t *testing.T) {
 				t.Parallel()
 				b := &entity.Borrowing{Status: from}
@@ -171,6 +171,87 @@ func TestBorrowingApproveAndReject(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+func TestBorrowingSubmitReturn(t *testing.T) {
+	t.Parallel()
+	for _, from := range enums.BorrowingStatuses {
+		t.Run("dari "+from, func(t *testing.T) {
+			t.Parallel()
+			b := &entity.Borrowing{Status: from}
+			err := b.SubmitReturn("returns/a.png")
+
+			// Hanya pengajuan yang sedang dipinjam atau fotonya baru ditolak yang boleh dikembalikan.
+			if from == enums.BorrowingApproved || from == enums.BorrowingReturnRejected {
+				mustNoErr(t, err)
+				if b.Status != enums.BorrowingReturnPending || b.ReturnPhoto == nil || *b.ReturnPhoto != "returns/a.png" {
+					t.Errorf("status %q foto %v; want RETURN_PENDING dengan foto returns/a.png", b.Status, b.ReturnPhoto)
+				}
+				return
+			}
+			assertDomainError(t, err, "BORROWING_NOT_RETURNABLE", errx.KindConflict)
+			if b.Status != from || b.ReturnPhoto != nil {
+				t.Errorf("status %q foto %v; want tetap %q tanpa foto", b.Status, b.ReturnPhoto, from)
+			}
+		})
+	}
+}
+
+func TestBorrowingApproveAndRejectReturn(t *testing.T) {
+	t.Parallel()
+	actions := []struct {
+		name       string
+		do         func(*entity.Borrowing) error
+		wantStatus string
+		wantPhoto  bool
+	}{
+		{name: "ApproveReturn", do: (*entity.Borrowing).ApproveReturn, wantStatus: enums.BorrowingReturned, wantPhoto: true},
+		{name: "RejectReturn", do: (*entity.Borrowing).RejectReturn, wantStatus: enums.BorrowingReturnRejected, wantPhoto: false},
+	}
+	for _, act := range actions {
+		for _, from := range enums.BorrowingStatuses {
+			t.Run(act.name+" dari "+from, func(t *testing.T) {
+				t.Parallel()
+				photo := "returns/a.png"
+				b := &entity.Borrowing{Status: from, ReturnPhoto: &photo}
+				err := act.do(b)
+
+				if from != enums.BorrowingReturnPending {
+					assertDomainError(t, err, "RETURN_NOT_PENDING", errx.KindConflict)
+					if b.Status != from || b.ReturnPhoto == nil {
+						t.Errorf("status %q foto %v; want tidak berubah", b.Status, b.ReturnPhoto)
+					}
+					return
+				}
+				mustNoErr(t, err)
+				if b.Status != act.wantStatus || (b.ReturnPhoto != nil) != act.wantPhoto {
+					t.Errorf("status %q foto %v; want %q, foto masih ada = %v", b.Status, b.ReturnPhoto, act.wantStatus, act.wantPhoto)
+				}
+			})
+		}
+	}
+}
+
+func TestItemRestock(t *testing.T) {
+	t.Parallel()
+	item := entity.NewItem("Proyektor", "", 1, 5)
+	mustNoErr(t, item.Lend(3)) // tersedia 2
+
+	mustNoErr(t, item.Restock(3))
+	if item.AvailableQuantity != 5 {
+		t.Errorf("tersedia = %d; want 5 (kembali penuh)", item.AvailableQuantity)
+	}
+	// Melebihi total atau jumlah tidak positif = data tidak wajar: error biasa (500), stok tidak berubah.
+	for _, qty := range []int{1, 0, -1} {
+		if err := item.Restock(qty); err == nil {
+			t.Errorf("Restock(%d) saat stok penuh = nil; want error", qty)
+		} else if _, ok := errx.As(err); ok {
+			t.Errorf("Restock(%d) error = DomainError; want error biasa (bukan kesalahan user)", qty)
+		}
+	}
+	if item.AvailableQuantity != 5 {
+		t.Errorf("tersedia = %d setelah Restock gagal; want tetap 5", item.AvailableQuantity)
 	}
 }
 

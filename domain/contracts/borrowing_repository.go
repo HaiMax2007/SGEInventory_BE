@@ -26,6 +26,8 @@ type BorrowingRepository interface {
 	FindByIDForUpdate(ctx context.Context, id uint) (*entity.Borrowing, error)
 	// UpdateStatus menyimpan status pengajuan (updated_at ikut berubah).
 	UpdateStatus(ctx context.Context, borrowing *entity.Borrowing) error
+	// UpdateReturn menyimpan status + foto pengembalian (return_photo; nil → NULL).
+	UpdateReturn(ctx context.Context, borrowing *entity.Borrowing) error
 	// LockUnfulfillablePending mencari & MENGUNCI pengajuan PENDING yang memuat salah satu itemIDs
 	// dengan jumlah melebihi stok tersedia saat ini. Hasil: id pengajuan, urut naik.
 	LockUnfulfillablePending(ctx context.Context, itemIDs []uint) ([]uint, error)

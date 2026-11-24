@@ -71,6 +71,18 @@ func (i *Item) Lend(qty int) error {
 	return nil
 }
 
+// Restock menambah stok tersedia karena qty barang dikembalikan (dipanggil saat pengembalian di-ACC).
+// Stok tersedia tidak boleh melebihi total. Ini seharusnya tidak pernah terjadi (ChangeTotal menjaga
+// total ≥ jumlah dipinjam), jadi errornya error biasa: dicatat di log & dibalas 500, bukan kesalahan user.
+func (i *Item) Restock(qty int) error {
+	if qty <= 0 || i.AvailableQuantity+qty > i.TotalQuantity {
+		return fmt.Errorf("restock item %d: tersedia %d + %d melebihi total %d",
+			i.ID, i.AvailableQuantity, qty, i.TotalQuantity)
+	}
+	i.AvailableQuantity += qty
+	return nil
+}
+
 // LendShortage membuat satu keterangan barang yang stoknya kurang, mis. "Proyektor (diminta 5, tersedia 3)".
 func LendShortage(name string, requested, available int) string {
 	return fmt.Sprintf("%s (diminta %d, tersedia %d)", name, requested, available)

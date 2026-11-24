@@ -20,6 +20,7 @@ type Config struct {
 	DBSSLMode   string
 	JWTSecret   string
 	CORSOrigins []string
+	UploadDir   string // folder file unggahan (foto pengembalian), dilayani di URL /uploads/...
 }
 
 // LoadConfig membaca env lalu memastikan nilai penting sudah benar.
@@ -36,6 +37,7 @@ func LoadConfig() (*Config, error) {
 		DBSSLMode:   getEnv("DB_SSLMODE", "disable"),
 		JWTSecret:   os.Getenv("JWT_SECRET"),
 		CORSOrigins: strings.Split(getEnv("CORS_ORIGINS", "http://localhost:5173,http://localhost:3001"), ","),
+		UploadDir:   getEnv("UPLOAD_DIR", "uploads"),
 	}
 
 	if len(cfg.JWTSecret) < 32 {

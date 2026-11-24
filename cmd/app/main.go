@@ -7,7 +7,9 @@ import (
 	"github.com/gofiber/fiber/v3/middleware/cors"
 	"github.com/gofiber/fiber/v3/middleware/logger"
 	"github.com/gofiber/fiber/v3/middleware/recover"
+	"github.com/gofiber/fiber/v3/middleware/static"
 
+	"SGEInventory_BE/domain/dto"
 	"SGEInventory_BE/internal/app/auth"
 	"SGEInventory_BE/internal/app/borrowing"
 	"SGEInventory_BE/internal/app/item"
@@ -17,6 +19,7 @@ import (
 	"SGEInventory_BE/internal/config"
 	"SGEInventory_BE/internal/infra/database"
 	"SGEInventory_BE/internal/infra/repository"
+	"SGEInventory_BE/internal/infra/storage"
 	"SGEInventory_BE/internal/middlewares"
 	"SGEInventory_BE/pkg/response"
 )
@@ -54,10 +57,16 @@ func main() {
 	userLogRepo := repository.NewUserLogRepository(db)
 	transactor := repository.NewTransactor(db) // menjalankan beberapa repository dalam satu transaksi
 
+	// Folder file unggahan (foto pengembalian). Isinya dilayani di URL /uploads/... (lihat langkah 7).
+	fileStorage, err := storage.NewLocalStorage(cfg.UploadDir)
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	userSvc := user.NewUserService(userRepo)
 	// borrowingSvc dibuat sebelum itemSvc: item service memakainya untuk menolak otomatis pengajuan
 	// PENDING saat total barang dikurangi.
-	borrowingSvc := borrowing.NewBorrowingService(borrowingRepo, userLogRepo, itemRepo, lembagaRepo, transactor)
+	borrowingSvc := borrowing.NewBorrowingService(borrowingRepo, userLogRepo, itemRepo, lembagaRepo, transactor, fileStorage)
 	itemSvc := item.NewItemService(itemRepo, lembagaRepo, borrowingSvc, transactor)
 	lembagaSvc := lembaga.NewLembagaService(lembagaRepo)
 	userLogSvc := userlog.NewUserLogService(userLogRepo)
@@ -71,8 +80,11 @@ func main() {
 	authHandler := auth.NewAuthHandler(authSvc)
 
 	// 5. Buat aplikasi Fiber. Semua error dari handler diubah menjadi JSON oleh ErrorHandler.
+	// BodyLimit 6 MB: foto pengembalian maksimal 5 MB + sedikit ruang untuk data multipart lainnya
+	// (default Fiber 4 MB). Body yang lebih besar langsung ditolak Fiber dengan 413.
 	app := fiber.New(fiber.Config{
 		ErrorHandler: middlewares.ErrorHandler,
+		BodyLimit:    6 << 20,
 	})
 
 	// 6. Middleware global: catat request, cegah server mati saat panic,
@@ -88,6 +100,15 @@ func main() {
 	app.Get("/", func(c fiber.Ctx) error {
 		return response.Message(c, fiber.StatusOK, "This app is running")
 	})
+
+	// File unggahan (publik): GET /uploads/returns/<nama acak>.jpg. Nama file acak sehingga tidak bisa ditebak;
+	// daftar isi folder tidak ditampilkan (Browse: false). nosniff: browser tidak boleh menebak jenis file sendiri.
+	app.Get(dto.UploadsURLPrefix+"*", static.New(cfg.UploadDir, static.Config{
+		ModifyResponse: func(c fiber.Ctx) error {
+			c.Set("X-Content-Type-Options", "nosniff")
+			return nil
+		},
+	}))
 
 	protected := middlewares.Protected(cfg.JWTSecret) // middleware cek token, dipakai di banyak route
 	api := app.Group("/api")

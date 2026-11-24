@@ -117,6 +117,60 @@ func (h *BorrowingHandler) Reject(c fiber.Ctx) error {
 	return response.Success(c, fiber.StatusOK, "Pengajuan peminjaman ditolak", res)
 }
 
+// SubmitReturn: POST /api/borrowings/:id/return (khusus role USER, pemilik pengajuan)
+// Body berupa multipart/form-data dengan field file "photo" (bukan JSON).
+func (h *BorrowingHandler) SubmitReturn(c fiber.Ctx) error {
+	id, err := parseID(c)
+	if err != nil {
+		return err
+	}
+
+	// Error FormFile (field tidak ada / body bukan multipart) diabaikan: Photo tetap nil dan
+	// ValidateStruct membalasnya dengan errx.ErrInvalidReturnPhoto.
+	photo, _ := c.FormFile("photo")
+	req := dto.SubmitReturnRequest{Photo: photo}
+	if err := validator.ValidateStruct(&req); err != nil {
+		return err
+	}
+
+	userID := fiber.Locals[uint](c, "userID")
+	res, err := h.svc.SubmitReturn(c.Context(), id, userID, req)
+	if err != nil {
+		return err
+	}
+	return response.Success(c, fiber.StatusOK, "Pengembalian berhasil diajukan", res)
+}
+
+// ApproveReturn: PATCH /api/borrowings/:id/return/approve (admin)
+func (h *BorrowingHandler) ApproveReturn(c fiber.Ctx) error {
+	id, err := parseID(c)
+	if err != nil {
+		return err
+	}
+
+	adminID := fiber.Locals[uint](c, "userID")
+	res, err := h.svc.ApproveReturn(c.Context(), id, adminID)
+	if err != nil {
+		return err
+	}
+	return response.Success(c, fiber.StatusOK, "Pengembalian disetujui", res)
+}
+
+// RejectReturn: PATCH /api/borrowings/:id/return/reject (admin)
+func (h *BorrowingHandler) RejectReturn(c fiber.Ctx) error {
+	id, err := parseID(c)
+	if err != nil {
+		return err
+	}
+
+	adminID := fiber.Locals[uint](c, "userID")
+	res, err := h.svc.RejectReturn(c.Context(), id, adminID)
+	if err != nil {
+		return err
+	}
+	return response.Success(c, fiber.StatusOK, "Pengembalian ditolak, user perlu mengunggah foto baru", res)
+}
+
 // parseID mengubah :id di URL menjadi angka.
 func parseID(c fiber.Ctx) (uint, error) {
 	id, err := strconv.Atoi(c.Params("id"))

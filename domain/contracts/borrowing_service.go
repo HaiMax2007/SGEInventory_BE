@@ -24,6 +24,13 @@ type BorrowingService interface {
 	// RejectBorrowing (admin): status REJECTED, stok tidak berubah.
 	RejectBorrowing(ctx context.Context, id, adminID uint) (*dto.BorrowingResponse, error)
 
+	// SubmitReturn (user pemilik): simpan foto bukti, status RETURN_PENDING.
+	SubmitReturn(ctx context.Context, id, userID uint, req dto.SubmitReturnRequest) (*dto.BorrowingResponse, error)
+	// ApproveReturn (admin): stok tiap barang kembali, status RETURNED (alur selesai).
+	ApproveReturn(ctx context.Context, id, adminID uint) (*dto.BorrowingResponse, error)
+	// RejectReturn (admin): status RETURN_REJECTED, foto dihapus, user mengunggah foto baru.
+	RejectReturn(ctx context.Context, id, adminID uint) (*dto.BorrowingResponse, error)
+
 	PendingBorrowingRejecter
 }
 

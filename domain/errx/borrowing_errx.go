@@ -10,7 +10,11 @@ var (
 
 	// filter ?status= di daftar pengajuan (admin)
 	ErrInvalidBorrowingStatus = New(KindInvalid, "INVALID_BORROWING_STATUS",
-		"Status harus salah satu dari PENDING, APPROVED, REJECTED, RETURN_PENDING, RETURNED")
+		"Status harus salah satu dari PENDING, APPROVED, REJECTED, RETURN_PENDING, RETURN_REJECTED, RETURNED")
+
+	// pengembalian: field "photo" di form (multipart) kosong, bukan gambar, atau terlalu besar
+	ErrInvalidReturnPhoto = New(KindInvalid, "INVALID_RETURN_PHOTO",
+		"Foto pengembalian wajib diunggah: JPG, PNG, atau WebP, maksimal 5 MB")
 )
 
 // Error validasi form peminjaman per field (dari tag `validate` di dto.CreateBorrowingRequest).
@@ -74,4 +78,18 @@ func NewBorrowingAlreadyProcessed(status string) *DomainError {
 func NewBorrowItemsUnavailable(names []string) *DomainError {
 	return New(KindConflict, "BORROW_ITEMS_UNAVAILABLE",
 		"Barang sudah dihapus: "+strings.Join(names, ", "))
+}
+
+// NewBorrowingNotReturnable: user mengunggah foto pengembalian, tapi pengajuannya tidak sedang dipinjam
+// (belum di-ACC, ditolak, sudah menunggu persetujuan pengembalian, atau sudah dikembalikan).
+func NewBorrowingNotReturnable(status string) *DomainError {
+	return New(KindConflict, "BORROWING_NOT_RETURNABLE",
+		fmt.Sprintf("Pengajuan tidak bisa dikembalikan sekarang (status: %s)", status))
+}
+
+// NewReturnNotPending: admin memproses pengembalian, tapi tidak ada pengembalian yang menunggu persetujuan
+// (belum diunggah, atau sudah diproses admin lain).
+func NewReturnNotPending(status string) *DomainError {
+	return New(KindConflict, "RETURN_NOT_PENDING",
+		fmt.Sprintf("Tidak ada pengembalian yang menunggu persetujuan (status: %s)", status))
 }

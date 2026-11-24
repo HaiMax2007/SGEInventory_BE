@@ -25,7 +25,8 @@ type borrowingService struct {
 	logRepo     contracts.UserLogRepository
 	itemRepo    contracts.ItemRepository
 	lembagaRepo contracts.LembagaRepository
-	tx          contracts.Transactor // menjalankan beberapa repository dalam satu transaksi (ACC/REJECT)
+	tx          contracts.Transactor  // menjalankan beberapa repository dalam satu transaksi (ACC/REJECT)
+	storage     contracts.FileStorage // tempat menyimpan foto pengembalian
 }
 
 // NewBorrowingService membuat service peminjaman. Repository dioper dari main.go (dependency injection).
@@ -35,8 +36,11 @@ func NewBorrowingService(
 	itemRepo contracts.ItemRepository,
 	lembagaRepo contracts.LembagaRepository,
 	tx contracts.Transactor,
+	storage contracts.FileStorage,
 ) contracts.BorrowingService {
-	return &borrowingService{repo: repo, logRepo: logRepo, itemRepo: itemRepo, lembagaRepo: lembagaRepo, tx: tx}
+	return &borrowingService{
+		repo: repo, logRepo: logRepo, itemRepo: itemRepo, lembagaRepo: lembagaRepo, tx: tx, storage: storage,
+	}
 }
 
 // CreateBorrowing menjalankan alur submit pengajuan:

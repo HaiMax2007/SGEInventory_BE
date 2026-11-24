@@ -59,6 +59,7 @@ func parseDay(t *testing.T, s string) time.Time {
 type borrowingFixture struct {
 	db      *fakeDB
 	tx      *fakeTransactor
+	storage *fakeStorage
 	svc     contracts.BorrowingService
 	user    *entity.User
 	admin   *entity.User
@@ -68,12 +69,12 @@ type borrowingFixture struct {
 func newBorrowingFixture(t *testing.T) *borrowingFixture {
 	t.Helper()
 	db := newFakeDB()
-	f := &borrowingFixture{db: db, tx: &fakeTransactor{db: db}}
+	f := &borrowingFixture{db: db, tx: &fakeTransactor{db: db}, storage: newFakeStorage()}
 	f.user = db.addUser("Raka", enums.RoleUser)
 	f.admin = db.addUser("Max", enums.RoleAdmin)
 	f.lembaga = db.addLembaga("BEM")
 	f.svc = borrowing.NewBorrowingService(
-		&fakeBorrowingRepo{db}, &fakeUserLogRepo{db}, &fakeItemRepo{db}, &fakeLembagaRepo{db}, f.tx,
+		&fakeBorrowingRepo{db}, &fakeUserLogRepo{db}, &fakeItemRepo{db}, &fakeLembagaRepo{db}, f.tx, f.storage,
 	)
 	return f
 }
