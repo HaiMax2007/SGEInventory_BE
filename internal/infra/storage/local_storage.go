@@ -2,6 +2,7 @@
 package storage
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -12,7 +13,11 @@ import (
 	"SGEInventory_BE/domain/contracts"
 )
 
-// LocalStorage menyimpan file di sebuah folder di server (mis. "uploads").
+// URLPrefix adalah awalan URL file di LocalStorage. Route static di cmd/app/main.go memakai awalan yang sama.
+const URLPrefix = "/uploads/"
+
+// LocalStorage menyimpan file di sebuah folder di server (mis. "uploads"). Dipakai sebagai cadangan di
+// development saat CLOUDINARY_URL kosong; file dilayani lewat GET /uploads/... (lihat main.go).
 //
 // Semua akses lewat os.Root: path seperti "../../etc/passwd" otomatis ditolak karena keluar dari folder
 // unggahan. Jadi walaupun suatu saat path berasal dari luar, file di luar folder tidak bisa disentuh.
@@ -42,7 +47,8 @@ func (s *LocalStorage) Close() error {
 
 // Save menulis isi r ke file path (folder induknya dibuat otomatis). O_EXCL: gagal jika file sudah ada,
 // supaya file lain tidak pernah tertimpa. Jika penulisan gagal di tengah jalan, file setengah jadi dihapus.
-func (s *LocalStorage) Save(filePath string, r io.Reader) (err error) {
+// ctx tidak dipakai (menulis ke disk lokal), hanya untuk memenuhi interface.
+func (s *LocalStorage) Save(_ context.Context, filePath string, r io.Reader) (err error) {
 	if err := s.root.MkdirAll(path.Dir(filePath), 0o755); err != nil {
 		return fmt.Errorf("create dir for %s: %w", filePath, err)
 	}
@@ -66,9 +72,14 @@ func (s *LocalStorage) Save(filePath string, r io.Reader) (err error) {
 }
 
 // Delete menghapus file path. File yang sudah tidak ada dianggap berhasil.
-func (s *LocalStorage) Delete(filePath string) error {
+func (s *LocalStorage) Delete(_ context.Context, filePath string) error {
 	if err := s.root.Remove(filePath); err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return fmt.Errorf("delete file %s: %w", filePath, err)
 	}
 	return nil
+}
+
+// URL mengubah key menjadi URL relatif, mis. "returns/a.jpg" → "/uploads/returns/a.jpg".
+func (s *LocalStorage) URL(key string) string {
+	return URLPrefix + key
 }

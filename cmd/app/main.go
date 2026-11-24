@@ -9,7 +9,7 @@ import (
 	"github.com/gofiber/fiber/v3/middleware/recover"
 	"github.com/gofiber/fiber/v3/middleware/static"
 
-	"SGEInventory_BE/domain/dto"
+	"SGEInventory_BE/domain/contracts"
 	"SGEInventory_BE/internal/app/auth"
 	"SGEInventory_BE/internal/app/borrowing"
 	"SGEInventory_BE/internal/app/item"
@@ -57,8 +57,8 @@ func main() {
 	userLogRepo := repository.NewUserLogRepository(db)
 	transactor := repository.NewTransactor(db) // menjalankan beberapa repository dalam satu transaksi
 
-	// Folder file unggahan (foto pengembalian). Isinya dilayani di URL /uploads/... (lihat langkah 7).
-	fileStorage, err := storage.NewLocalStorage(cfg.UploadDir)
+	// Tempat foto pengembalian: Cloudinary jika CLOUDINARY_URL diisi, folder lokal jika kosong (dev).
+	fileStorage, err := newFileStorage(cfg)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -101,14 +101,19 @@ func main() {
 		return response.Message(c, fiber.StatusOK, "This app is running")
 	})
 
-	// File unggahan (publik): GET /uploads/returns/<nama acak>.jpg. Nama file acak sehingga tidak bisa ditebak;
-	// daftar isi folder tidak ditampilkan (Browse: false). nosniff: browser tidak boleh menebak jenis file sendiri.
-	app.Get(dto.UploadsURLPrefix+"*", static.New(cfg.UploadDir, static.Config{
-		ModifyResponse: func(c fiber.Ctx) error {
-			c.Set("X-Content-Type-Options", "nosniff")
-			return nil
-		},
-	}))
+	// File unggahan di folder lokal (hanya jika TIDAK memakai Cloudinary): GET /uploads/returns/<nama acak>.jpg.
+	// Nama file acak sehingga tidak bisa ditebak; daftar isi folder tidak ditampilkan (Browse: false).
+	// nosniff: browser tidak boleh menebak jenis file sendiri. CacheDuration -1: file tidak disimpan di memori,
+	// jadi foto yang ditolak admin (sudah dihapus) langsung 404.
+	if cfg.CloudinaryURL == "" {
+		app.Get(storage.URLPrefix+"*", static.New(cfg.UploadDir, static.Config{
+			CacheDuration: -1,
+			ModifyResponse: func(c fiber.Ctx) error {
+				c.Set("X-Content-Type-Options", "nosniff")
+				return nil
+			},
+		}))
+	}
 
 	protected := middlewares.Protected(cfg.JWTSecret) // middleware cek token, dipakai di banyak route
 	api := app.Group("/api")
@@ -121,4 +126,15 @@ func main() {
 
 	// 8. Jalankan server
 	log.Fatal(app.Listen(":" + cfg.AppPort))
+}
+
+// newFileStorage memilih tempat foto pengembalian. CLOUDINARY_URL kosong hanya mungkin di development
+// (config.LoadConfig menolaknya di production). Nilai CLOUDINARY_URL tidak pernah dicetak.
+func newFileStorage(cfg *config.Config) (contracts.FileStorage, error) {
+	if cfg.CloudinaryURL == "" {
+		log.Printf("penyimpanan foto: folder lokal %q (CLOUDINARY_URL kosong)", cfg.UploadDir)
+		return storage.NewLocalStorage(cfg.UploadDir)
+	}
+	log.Printf("penyimpanan foto: Cloudinary (folder %q)", cfg.CloudinaryFolder)
+	return storage.NewCloudinaryStorage(cfg.CloudinaryURL, cfg.CloudinaryFolder)
 }

@@ -110,8 +110,8 @@ func TestSubmitReturn_Success(t *testing.T) {
 			if !bytes.Equal(f.storage.files[path], tt.content) {
 				t.Errorf("isi file tersimpan tidak sama dengan yang diunggah")
 			}
-			if res.Status != enums.BorrowingReturnPending || res.ReturnPhotoURL == nil || *res.ReturnPhotoURL != "/uploads/"+path {
-				t.Errorf("respons status %q url %v; want RETURN_PENDING dan /uploads/%s", res.Status, res.ReturnPhotoURL, path)
+			if res.Status != enums.BorrowingReturnPending || res.ReturnPhotoURL == nil || *res.ReturnPhotoURL != "https://cdn.test/"+path {
+				t.Errorf("respons status %q url %v; want RETURN_PENDING dan https://cdn.test/%s (URL dari storage)", res.Status, res.ReturnPhotoURL, path)
 			}
 			// Stok belum berubah: barang baru dianggap kembali setelah admin ACC.
 			if p, k := f.stock(); p != 3 || k != 2 {
@@ -242,6 +242,9 @@ func TestApproveReturn_RestocksItems(t *testing.T) {
 
 	res, err := f.svc.ApproveReturn(t.Context(), f.borrowing.ID, f.admin.ID)
 	mustNoErr(t, err)
+	if res.Timeline != nil {
+		t.Errorf("timeline = %v; want nil (response ApproveReturn tanpa timeline)", res.Timeline)
+	}
 
 	if p, k := f.stock(); p != 5 || k != 3 {
 		t.Errorf("stok = %d, %d; want kembali penuh 5, 3", p, k)
@@ -318,6 +321,9 @@ func TestRejectReturn_DeletesPhotoAndAllowsResubmit(t *testing.T) {
 
 	res, err := f.svc.RejectReturn(t.Context(), f.borrowing.ID, f.admin.ID)
 	mustNoErr(t, err)
+	if res.Timeline != nil {
+		t.Errorf("timeline = %v; want nil (response RejectReturn tanpa timeline)", res.Timeline)
+	}
 
 	if s := f.stored(); s.Status != enums.BorrowingReturnRejected || s.ReturnPhoto != nil {
 		t.Errorf("status %q foto %v; want RETURN_REJECTED tanpa foto", s.Status, s.ReturnPhoto)

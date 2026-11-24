@@ -75,14 +75,8 @@ func (s *borrowingService) CreateBorrowing(ctx context.Context, userID uint, req
 		return nil, err
 	}
 
-	// Ambil ulang dari database supaya peminjam, lembaga & barang ikut terisi
-	// (bentuk respons sama persis dengan GET /api/borrowings/:id, tanpa timeline).
-	saved, err := s.repo.FindByID(ctx, borrowing.ID)
-	if err != nil {
-		return nil, err
-	}
-	res := dto.NewBorrowingResponse(saved)
-	return &res, nil
+	// Ambil ulang dari database supaya peminjam, lembaga & barang ikut terisi.
+	return s.findResponse(ctx, borrowing.ID)
 }
 
 func (s *borrowingService) GetMyBorrowings(ctx context.Context, userID uint, query dto.BorrowingListQuery) ([]dto.BorrowingResponse, *pagination.Pagination, error) {
@@ -93,7 +87,7 @@ func (s *borrowingService) GetMyBorrowings(ctx context.Context, userID uint, que
 		return nil, nil, err
 	}
 	page.SetTotal(total)
-	return toBorrowingResponses(borrowings), page, nil
+	return s.toBorrowingResponses(borrowings), page, nil
 }
 
 // GetBorrowings mengambil semua pengajuan untuk admin. Filter status kosong = semua status.
@@ -110,14 +104,37 @@ func (s *borrowingService) GetBorrowings(ctx context.Context, query dto.Borrowin
 		return nil, nil, err
 	}
 	page.SetTotal(total)
-	return toBorrowingResponses(borrowings), page, nil
+	return s.toBorrowingResponses(borrowings), page, nil
 }
 
 // toBorrowingResponses mengubah daftar entity menjadi daftar response (tanpa timeline).
-func toBorrowingResponses(borrowings []entity.Borrowing) []dto.BorrowingResponse {
+func (s *borrowingService) toBorrowingResponses(borrowings []entity.Borrowing) []dto.BorrowingResponse {
 	res := make([]dto.BorrowingResponse, 0, len(borrowings))
 	for i := range borrowings {
-		res = append(res, dto.NewBorrowingResponse(&borrowings[i]))
+		res = append(res, s.toResponse(&borrowings[i]))
+	}
+	return res
+}
+
+// findResponse mengambil satu pengajuan (lengkap dengan peminjam, lembaga & barang) lalu mengubahnya menjadi
+// response TANPA timeline. Dipakai sebagai balasan setelah aksi: buat pengajuan, ACC/tolak oleh admin,
+// unggah/ACC/tolak pengembalian. Timeline hanya ada di GET /api/borrowings/:id (GetBorrowing).
+func (s *borrowingService) findResponse(ctx context.Context, id uint) (*dto.BorrowingResponse, error) {
+	borrowing, err := s.repo.FindByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	res := s.toResponse(borrowing)
+	return &res, nil
+}
+
+// toResponse = dto.NewBorrowingResponse + URL foto pengembalian dari storage yang dipakai.
+// Database hanya menyimpan key (mis. "returns/8f3a...jpg"), storage yang tahu alamat publiknya.
+func (s *borrowingService) toResponse(b *entity.Borrowing) dto.BorrowingResponse {
+	res := dto.NewBorrowingResponse(b)
+	if b.ReturnPhoto != nil {
+		photoURL := s.storage.URL(*b.ReturnPhoto)
+		res.ReturnPhotoURL = &photoURL
 	}
 	return res
 }
@@ -142,7 +159,7 @@ func (s *borrowingService) GetBorrowing(ctx context.Context, id, userID uint, is
 		return nil, err
 	}
 
-	res := dto.NewBorrowingResponse(borrowing)
+	res := s.toResponse(borrowing)
 	res.Timeline = make([]dto.UserLogResponse, 0, len(logs))
 	for i := range logs {
 		res.Timeline = append(res.Timeline, dto.NewUserLogResponse(&logs[i]))

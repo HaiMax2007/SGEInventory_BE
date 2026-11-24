@@ -80,7 +80,7 @@ func (s *borrowingService) ApproveBorrowing(ctx context.Context, id, adminID uin
 		return nil, err
 	}
 
-	detail, err := s.GetBorrowing(ctx, id, adminID, true)
+	detail, err := s.findResponse(ctx, id) // tanpa timeline
 	if err != nil {
 		return nil, err
 	}
@@ -107,7 +107,7 @@ func (s *borrowingService) RejectBorrowing(ctx context.Context, id, adminID uint
 	if err != nil {
 		return nil, err
 	}
-	return s.GetBorrowing(ctx, id, adminID, true)
+	return s.findResponse(ctx, id) // tanpa timeline
 }
 
 // RejectUnfulfillablePending menolak otomatis pengajuan PENDING yang memuat salah satu itemIDs dengan

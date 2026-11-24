@@ -70,7 +70,7 @@ func (s *borrowingService) SubmitReturn(ctx context.Context, id, userID uint, re
 	if err != nil {
 		return nil, err
 	}
-	if err := s.savePhoto(req.Photo, photoPath); err != nil {
+	if err := s.savePhoto(ctx, req.Photo, photoPath); err != nil {
 		return nil, err
 	}
 
@@ -89,18 +89,11 @@ func (s *borrowingService) SubmitReturn(ctx context.Context, id, userID uint, re
 		return s.logRepo.Create(ctx, activity)
 	})
 	if err != nil {
-		s.deletePhoto(photoPath)
+		s.deletePhoto(ctx, photoPath)
 		return nil, err
 	}
 
-	// Response untuk user tanpa timeline (sama seperti saat membuat pengajuan); riwayat lengkap
-	// tetap bisa dilihat lewat GET /api/borrowings/:id.
-	saved, err := s.repo.FindByID(ctx, id)
-	if err != nil {
-		return nil, err
-	}
-	res := dto.NewBorrowingResponse(saved)
-	return &res, nil
+	return s.findResponse(ctx, id) // tanpa timeline
 }
 
 // ApproveReturn menyetujui pengembalian dalam SATU transaksi: kunci barang lalu pengajuan, pastikan masih
@@ -155,7 +148,7 @@ func (s *borrowingService) ApproveReturn(ctx context.Context, id, adminID uint) 
 		return nil, err
 	}
 
-	return s.GetBorrowing(ctx, id, adminID, true)
+	return s.findResponse(ctx, id) // tanpa timeline
 }
 
 // RejectReturn menolak foto pengembalian: status RETURN_REJECTED, kolom foto dikosongkan, catat log.
@@ -183,9 +176,9 @@ func (s *borrowingService) RejectReturn(ctx context.Context, id, adminID uint) (
 	}
 
 	if oldPhoto != nil {
-		s.deletePhoto(*oldPhoto)
+		s.deletePhoto(ctx, *oldPhoto)
 	}
-	return s.GetBorrowing(ctx, id, adminID, true)
+	return s.findResponse(ctx, id) // tanpa timeline
 }
 
 // restockItems mengembalikan stok setiap barang di pengajuan. items adalah barang yang sudah dikunci.
@@ -249,19 +242,22 @@ func newPhotoPath(ext string) (string, error) {
 }
 
 // savePhoto menyalin isi file unggahan ke storage.
-func (s *borrowingService) savePhoto(photo *multipart.FileHeader, photoPath string) error {
+func (s *borrowingService) savePhoto(ctx context.Context, photo *multipart.FileHeader, photoPath string) error {
 	f, err := photo.Open()
 	if err != nil {
 		return fmt.Errorf("open uploaded photo: %w", err)
 	}
 	defer f.Close()
-	return s.storage.Save(photoPath, f)
+	return s.storage.Save(ctx, photoPath, f)
 }
 
 // deletePhoto menghapus file foto. Gagal menghapus tidak membatalkan request (data di database sudah benar,
 // dan file yatim tidak berbahaya), jadi error cukup dicatat di log.
-func (s *borrowingService) deletePhoto(photoPath string) {
-	if err := s.storage.Delete(photoPath); err != nil {
+//
+// context.WithoutCancel: penghapusan tetap dijalankan walaupun client sudah menutup koneksi, karena data di
+// database sudah terlanjur berubah. Batas waktunya diatur oleh storage (mis. 30 detik untuk Cloudinary).
+func (s *borrowingService) deletePhoto(ctx context.Context, photoPath string) {
+	if err := s.storage.Delete(context.WithoutCancel(ctx), photoPath); err != nil {
 		log.Println("delete return photo:", err)
 	}
 }

@@ -649,7 +649,7 @@ func newFakeStorage() *fakeStorage {
 	return &fakeStorage{files: map[string][]byte{}}
 }
 
-func (s *fakeStorage) Save(path string, r io.Reader) error {
+func (s *fakeStorage) Save(_ context.Context, path string, r io.Reader) error {
 	if s.saveErr != nil {
 		return s.saveErr
 	}
@@ -664,11 +664,16 @@ func (s *fakeStorage) Save(path string, r io.Reader) error {
 	return nil
 }
 
-func (s *fakeStorage) Delete(path string) error {
+func (s *fakeStorage) Delete(_ context.Context, path string) error {
 	s.deleted = append(s.deleted, path)
 	if s.deleteErr != nil {
 		return s.deleteErr
 	}
 	delete(s.files, path)
 	return nil
+}
+
+// URL sengaja berbeda dari LocalStorage, supaya tes membuktikan returnPhotoUrl dibuat oleh storage.
+func (s *fakeStorage) URL(path string) string {
+	return "https://cdn.test/" + path
 }

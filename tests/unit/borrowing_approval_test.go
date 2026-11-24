@@ -48,8 +48,9 @@ func TestApproveBorrowing_Success(t *testing.T) {
 	if logs[1].UserID != f.admin.ID {
 		t.Errorf("pelaku APPROVED = user %d; want admin %d", logs[1].UserID, f.admin.ID)
 	}
-	if len(res.Borrowing.Timeline) != 2 {
-		t.Errorf("timeline response = %d baris; want 2", len(res.Borrowing.Timeline))
+	// Response ACC tanpa timeline (riwayat lengkap ada di GET /api/borrowings/:id).
+	if res.Borrowing.Timeline != nil {
+		t.Errorf("timeline response = %v; want nil (tanpa timeline)", res.Borrowing.Timeline)
 	}
 }
 
@@ -221,6 +222,9 @@ func TestRejectBorrowing(t *testing.T) {
 
 		res, err := f.svc.RejectBorrowing(t.Context(), b.ID, f.admin.ID)
 		mustNoErr(t, err)
+		if res.Timeline != nil {
+			t.Errorf("timeline = %v; want nil (response tolak tanpa timeline)", res.Timeline)
+		}
 		if res.Status != enums.BorrowingRejected || f.db.borrowings[b.ID].Status != enums.BorrowingRejected {
 			t.Errorf("status = %s; want REJECTED", res.Status)
 		}
