@@ -17,6 +17,8 @@ services:
       - JWT_SECRET=${JWT_SECRET}
       # Alamat FE yang boleh memanggil API, pisahkan dengan koma
       - CORS_ORIGINS=${CORS_ORIGINS}
+      # Foto pengembalian: diisi → Cloudinary, kosong → folder uploads/ di proyek
+      - CLOUDINARY_URL=${CLOUDINARY_URL}
     ports:
       - "${PORT}:3000"
     depends_on:
