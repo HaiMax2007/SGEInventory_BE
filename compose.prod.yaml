@@ -5,31 +5,23 @@ services:
       dockerfile: docker/prod/Dockerfile
     restart: unless-stopped
     environment:
-      # production: tabel tetap dibuat otomatis (Migrate), tetapi akun awal (Seed) tidak dibuat
-      - APP_ENV=production
-      - PORT=3000
-      - DB_HOST=db
-      - DB_PORT=5432
-      - DB_USER=db_admin
-      # TODO: samakan dengan POSTGRES_PASSWORD di service db
-      - DB_PASSWORD=CHANGE_ME
-      - DB_NAME=sgeinventorydb_main
-      # TODO: ganti dengan string acak minimal 32 karakter (mis. hasil `openssl rand -hex 32`)
-      - JWT_SECRET=CHANGE_ME
-      # TODO: isi dengan domain FE produksi, pisahkan dengan koma
-      - CORS_ORIGINS=https://CHANGE_ME
-      # TODO: isi dengan CLOUDINARY_URL dari dashboard Cloudinary (wajib di production; foto pengembalian
-      # disimpan di Cloudinary). Format: cloudinary://API_KEY:API_SECRET@CLOUD_NAME
-      - CLOUDINARY_URL=cloudinary://CHANGE_ME
+      APP_ENV: production
+      PORT: ${PORT}
+      DB_HOST: ${DB_HOST}
+      DB_PORT: ${DB_PORT}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: ${DB_NAME}
+      JWT_SECRET: ${JWT_SECRET}
+      CORS_ORIGINS: ${CORS_ORIGINS}
+      CLOUDINARY_URL: ${CLOUDINARY_URL}
     ports:
-      # HTTPS/TLS tidak ditangani di compose ini; pasang reverse proxy di server
-      # atau gunakan Cloudflare di depan port ini.
-      - "${API_PORT:-3000}:3000"
+      - "${API_PORT}:${API_PORT}"
     depends_on:
       db:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/"]
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:${API_PORT}/"]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -39,15 +31,13 @@ services:
     image: postgres:18-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_USER: db_admin
-      # TODO: ganti CHANGE_ME dengan password produksi
-      POSTGRES_PASSWORD: CHANGE_ME
-      POSTGRES_DB: sgeinventorydb_main
-    # Port DB sengaja tidak dipublish ke host; hanya bisa diakses antar-container.
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
     volumes:
       - postgres_data:/var/lib/postgresql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U db_admin -d sgeinventorydb_main"]
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -55,14 +45,15 @@ services:
 
   pgadmin:
     image: dpage/pgadmin4:9
+    profiles: ["tools"]
     restart: unless-stopped
     environment:
-      # TODO: ganti dengan email & password login pgAdmin produksi
-      PGADMIN_DEFAULT_EMAIL: admin@example.com
-      PGADMIN_DEFAULT_PASSWORD: CHANGE_ME
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD}
     ports:
-      # Hanya bisa diakses dari server itu sendiri (gunakan SSH tunnel).
-      - "127.0.0.1:${PGADMIN_PORT:-8081}:80"
+      - "127.0.0.1:${PGADMIN_PORT}:80"
+    labels:
+      - "traefik.enable=false"
     volumes:
       - pgadmin_data:/var/lib/pgadmin
     depends_on:
