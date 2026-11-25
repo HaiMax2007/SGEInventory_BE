@@ -35,7 +35,7 @@ func newConsignmentFixture() *consignmentFixture {
 	f := &consignmentFixture{db: db, repo: &fakeConsignmentRepo{db: db}, storage: newFakeStorage()}
 	f.user = db.addUser("Raka", enums.RoleUser)
 	f.lembaga = db.addLembaga("HMDTIF")
-	f.svc = consignment.NewConsignmentService(f.repo, &fakeLembagaRepo{db}, f.storage)
+	f.svc = consignment.NewConsignmentService(f.repo, &fakeUserLogRepo{db}, &fakeLembagaRepo{db}, &fakeTransactor{db: db}, f.storage)
 	return f
 }
 
@@ -191,8 +191,8 @@ func TestCreateConsignment_Success(t *testing.T) {
 		res.EndDate != req.EndDate || res.Notes != req.Notes || res.User == nil || res.Lembaga == nil || len(res.Items) != 2 {
 		t.Errorf("response = %+v; want data form lengkap", res)
 	}
-	if res.PhotoURL != "https://cdn.test/"+stored.Photo {
-		t.Errorf("photoUrl = %q; want URL dari storage", res.PhotoURL)
+	if res.PhotoURL == nil || *res.PhotoURL != "https://cdn.test/"+stored.Photo {
+		t.Errorf("photoUrl = %v; want URL dari storage", res.PhotoURL)
 	}
 	if res.Items[0].Name != "Kursi lipat" || res.Items[0].Quantity != 10 {
 		t.Errorf("items[0] = %+v; want Kursi lipat ×10", res.Items[0])
@@ -318,7 +318,7 @@ func TestGetMyConsignments_OnlyOwn(t *testing.T) {
 	}
 	first := res[0]
 	if first.Status != enums.ConsignmentApproved || len(first.Items) != 2 || first.User == nil || first.User.ID != f.user.ID ||
-		!strings.HasPrefix(first.PhotoURL, "https://cdn.test/consignments/") {
+		first.PhotoURL == nil || !strings.HasPrefix(*first.PhotoURL, "https://cdn.test/consignments/") {
 		t.Errorf("res[0] = %+v; want APPROVED, 2 barang, user Raka, photoUrl dari storage", first)
 	}
 

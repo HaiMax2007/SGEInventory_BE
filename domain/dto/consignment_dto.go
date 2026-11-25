@@ -82,7 +82,7 @@ type ConsignmentResponse struct {
 	StartDate string                    `json:"startDate"`
 	EndDate   string                    `json:"endDate"`
 	Notes     string                    `json:"notes"`
-	PhotoURL  string                    `json:"photoUrl"` // diisi service dari storage (Cloudinary / folder lokal)
+	PhotoURL  *string                   `json:"photoUrl"` // diisi service dari storage; null jika foto sudah dihapus (ditolak)
 	User      *UserSummary              `json:"user"`     // penitip (pemilik pengajuan)
 	Lembaga   *LembagaSummary           `json:"lembaga"`
 	Items     []ConsignmentItemResponse `json:"items"`

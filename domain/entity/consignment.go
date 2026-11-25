@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"SGEInventory_BE/domain/enums"
+	"SGEInventory_BE/domain/errx"
 )
 
 // Consignment adalah cermin tabel consignments: satu pengajuan penitipan barang dari user.
@@ -25,6 +26,7 @@ type Consignment struct {
 	EndDate   time.Time `gorm:"type:date;not null;check:chk_consignments_end_after_start,end_date > start_date"`
 	// Photo: key foto barang di FileStorage (Cloudinary / folder lokal), mis. "consignments/8f3a...e1.jpg".
 	// Yang disimpan key, bukan URL penuh; URL publik dibuat storage saat membalas (response: photoUrl).
+	// Kosong ("") setelah penitipan ditolak (fotonya dihapus).
 	Photo string `gorm:"size:255;not null"`
 	// Notes: catatan dari user, boleh kosong.
 	Notes string `gorm:"type:text"`
@@ -54,4 +56,24 @@ func NewConsignment(userID, lembagaID uint, eventName string, startDate, endDate
 		Notes:     notes,
 		Items:     items,
 	}
+}
+
+// Approve menyetujui penitipan. Hanya penitipan PENDING yang bisa diproses, dan hanya sekali.
+func (c *Consignment) Approve() error {
+	if c.Status != enums.ConsignmentPending {
+		return errx.NewConsignmentAlreadyProcessed(c.Status)
+	}
+	c.Status = enums.ConsignmentApproved
+	return nil
+}
+
+// Reject menolak penitipan: status REJECTED dan kolom foto dikosongkan (file fotonya dihapus service setelah
+// transaksi berhasil). Barang-barangnya dihapus service lewat repository. Hanya dari PENDING, dan hanya sekali.
+func (c *Consignment) Reject() error {
+	if c.Status != enums.ConsignmentPending {
+		return errx.NewConsignmentAlreadyProcessed(c.Status)
+	}
+	c.Status = enums.ConsignmentRejected
+	c.Photo = ""
+	return nil
 }

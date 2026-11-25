@@ -104,6 +104,16 @@ func TestGetBorrowings_Admin(t *testing.T) {
 		}
 	})
 
+	t.Run("user berisi NIM & kontak peminjam", func(t *testing.T) {
+		f.db.users[f.user.ID].Contact = "081234567890"
+		res, _, err := f.svc.GetBorrowings(t.Context(), dto.BorrowingListQuery{Page: 1, Limit: 10})
+		mustNoErr(t, err)
+		want := dto.UserSummary{ID: f.user.ID, FullName: "Raka", NIM: f.user.NIM, Contact: "081234567890"}
+		if res[0].User == nil || *res[0].User != want {
+			t.Errorf("user = %+v; want %+v", res[0].User, want)
+		}
+	})
+
 	t.Run("tanpa filter + halaman", func(t *testing.T) {
 		res, page, err := f.svc.GetBorrowings(t.Context(), dto.BorrowingListQuery{Page: 2, Limit: 2})
 		mustNoErr(t, err)

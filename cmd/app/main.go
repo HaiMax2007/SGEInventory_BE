@@ -70,7 +70,7 @@ func main() {
 	// PENDING saat total barang dikurangi.
 	borrowingSvc := borrowing.NewBorrowingService(borrowingRepo, userLogRepo, itemRepo, lembagaRepo, transactor, fileStorage)
 	itemSvc := item.NewItemService(itemRepo, lembagaRepo, borrowingSvc, transactor)
-	consignmentSvc := consignment.NewConsignmentService(consignmentRepo, lembagaRepo, fileStorage)
+	consignmentSvc := consignment.NewConsignmentService(consignmentRepo, userLogRepo, lembagaRepo, transactor, fileStorage)
 	lembagaSvc := lembaga.NewLembagaService(lembagaRepo)
 	userLogSvc := userlog.NewUserLogService(userLogRepo)
 	authSvc := auth.NewAuthService(userRepo, cfg.JWTSecret)

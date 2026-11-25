@@ -41,3 +41,10 @@ func NewConsignmentTooLong(maxDays int) *DomainError {
 	return New(KindInvalid, "CONSIGNMENT_TOO_LONG",
 		fmt.Sprintf("Lama penitipan maksimal %d hari dari tanggal mulai", maxDays))
 }
+
+// NewConsignmentAlreadyProcessed: admin mencoba ACC/menolak penitipan yang statusnya bukan PENDING lagi
+// (sudah diproses, mungkin oleh admin lain). ACC/tolak hanya terjadi sekali.
+func NewConsignmentAlreadyProcessed(status string) *DomainError {
+	return New(KindConflict, "CONSIGNMENT_ALREADY_PROCESSED",
+		fmt.Sprintf("Pengajuan penitipan sudah diproses (status: %s)", status))
+}

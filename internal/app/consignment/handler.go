@@ -2,11 +2,13 @@ package consignment
 
 import (
 	"errors"
+	"strconv"
 
 	"github.com/gofiber/fiber/v3"
 
 	"SGEInventory_BE/domain/contracts"
 	"SGEInventory_BE/domain/dto"
+	"SGEInventory_BE/domain/enums"
 	"SGEInventory_BE/domain/errx"
 	"SGEInventory_BE/pkg/response"
 	"SGEInventory_BE/pkg/validator"
@@ -90,4 +92,59 @@ func (h *ConsignmentHandler) GetAll(c fiber.Ctx) error {
 		return err
 	}
 	return response.SuccessWithMeta(c, "Daftar semua pengajuan penitipan berhasil diambil", res, page)
+}
+
+// GetByID: GET /api/consignments/:id (pemilik penitipan atau admin; tanpa timeline)
+func (h *ConsignmentHandler) GetByID(c fiber.Ctx) error {
+	id, err := parseID(c)
+	if err != nil {
+		return err
+	}
+
+	userID := fiber.Locals[uint](c, "userID")
+	isAdmin := fiber.Locals[string](c, "role") == enums.RoleAdmin
+	res, err := h.svc.GetConsignment(c.Context(), id, userID, isAdmin)
+	if err != nil {
+		return err
+	}
+	return response.Success(c, fiber.StatusOK, "Pengajuan penitipan ditemukan", res)
+}
+
+// Approve: PATCH /api/consignments/:id/approve (admin; tanpa body)
+func (h *ConsignmentHandler) Approve(c fiber.Ctx) error {
+	id, err := parseID(c)
+	if err != nil {
+		return err
+	}
+
+	adminID := fiber.Locals[uint](c, "userID") // dicatat sebagai pelaku di log
+	res, err := h.svc.ApproveConsignment(c.Context(), id, adminID)
+	if err != nil {
+		return err
+	}
+	return response.Success(c, fiber.StatusOK, "Pengajuan penitipan disetujui", res)
+}
+
+// Reject: PATCH /api/consignments/:id/reject (admin; tanpa body). Barang titipan & fotonya ikut dihapus.
+func (h *ConsignmentHandler) Reject(c fiber.Ctx) error {
+	id, err := parseID(c)
+	if err != nil {
+		return err
+	}
+
+	adminID := fiber.Locals[uint](c, "userID")
+	res, err := h.svc.RejectConsignment(c.Context(), id, adminID)
+	if err != nil {
+		return err
+	}
+	return response.Success(c, fiber.StatusOK, "Pengajuan penitipan ditolak", res)
+}
+
+// parseID mengubah :id di URL menjadi angka.
+func parseID(c fiber.Ctx) (uint, error) {
+	id, err := strconv.Atoi(c.Params("id"))
+	if err != nil || id < 1 {
+		return 0, errx.ErrInvalidID
+	}
+	return uint(id), nil
 }

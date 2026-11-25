@@ -7,11 +7,16 @@ import (
 )
 
 // RegisterRoutes mendaftarkan URL penitipan. Semua butuh login; mengajukan penitipan hanya role USER,
-// melihat semua penitipan hanya ADMIN. (ACC/tolak oleh admin menyusul di tahap berikutnya.)
-// "/me" didaftarkan sebelum route ber-:id nanti, supaya "me" tidak dianggap sebagai :id.
+// melihat semua penitipan serta ACC/menolak hanya ADMIN.
+// "/me" didaftarkan sebelum "/:id", kalau tidak "me" akan dianggap sebagai :id.
 func RegisterRoutes(router fiber.Router, handler *ConsignmentHandler, protected fiber.Handler) {
 	consignments := router.Group("/consignments", protected)
 	consignments.Post("/", middlewares.UserOnly, handler.Create)
 	consignments.Get("/", middlewares.AdminOnly, handler.GetAll)
-	consignments.Get("/me", handler.GetMine)
+	consignments.Get("/me", middlewares.UserOnly, handler.GetMine)
+	consignments.Get("/:id", middlewares.AdminOnly, handler.GetByID)
+
+	// tahap 2: admin memproses penitipan
+	consignments.Patch("/:id/approve", middlewares.AdminOnly, handler.Approve)
+	consignments.Patch("/:id/reject", middlewares.AdminOnly, handler.Reject)
 }

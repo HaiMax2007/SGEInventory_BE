@@ -705,8 +705,9 @@ func (s *fakeStorage) URL(path string) string {
 // ===================================================================================================
 
 type fakeConsignmentRepo struct {
-	db        *fakeDB
-	createErr error // jika diisi, Create gagal (meniru transaksi yang di-ROLLBACK: tidak ada yang tersimpan)
+	db             *fakeDB
+	createErr      error // jika diisi, Create gagal (meniru transaksi yang di-ROLLBACK: tidak ada yang tersimpan)
+	deleteItemsErr error // jika diisi, DeleteItems gagal (untuk menguji rollback saat tolak)
 }
 
 // Create meniru repository asli: penitipan, barang-barangnya (ke tabel items) & log tersimpan bersama.
@@ -783,4 +784,36 @@ func (r *fakeConsignmentRepo) list(ctx context.Context, match func(*entity.Consi
 		rows = append(rows, *c)
 	}
 	return pageOf(rows, offset, limit), int64(len(rows)), nil
+}
+
+func (r *fakeConsignmentRepo) FindByIDForUpdate(_ context.Context, id uint) (*entity.Consignment, error) {
+	r.db.record("lock consignment")
+	c, ok := r.db.consignments[id]
+	if !ok {
+		return nil, errx.ErrConsignmentNotFound
+	}
+	return copyConsignment(c), nil
+}
+
+func (r *fakeConsignmentRepo) UpdateStatus(_ context.Context, c *entity.Consignment) error {
+	stored, ok := r.db.consignments[c.ID]
+	if !ok {
+		return errx.ErrConsignmentNotFound
+	}
+	stored.Status = c.Status
+	stored.Photo = c.Photo
+	return nil
+}
+
+// DeleteItems meniru DELETE permanen: barang benar-benar hilang dari "tabel" items.
+func (r *fakeConsignmentRepo) DeleteItems(_ context.Context, consignmentID uint) error {
+	if r.deleteItemsErr != nil {
+		return r.deleteItemsErr
+	}
+	for id, it := range r.db.items {
+		if it.ConsignmentID != nil && *it.ConsignmentID == consignmentID {
+			delete(r.db.items, id)
+		}
+	}
+	return nil
 }

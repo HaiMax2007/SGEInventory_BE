@@ -66,6 +66,42 @@ func (r *consignmentRepository) FindAll(ctx context.Context, status string, offs
 	return r.paginate(query, offset, limit)
 }
 
+// FindByIDForUpdate: SELECT * FROM consignments WHERE id = ? FOR UPDATE (tanpa relasi).
+// Dua admin yang memproses penitipan yang sama bergantian: yang kedua menunggu, lalu melihat status terbaru.
+func (r *consignmentRepository) FindByIDForUpdate(ctx context.Context, id uint) (*entity.Consignment, error) {
+	var consignment entity.Consignment
+	if err := conn(ctx, r.db).Clauses(forUpdate).First(&consignment, id).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, errx.ErrConsignmentNotFound
+		}
+		return nil, fmt.Errorf("lock consignment %d: %w", id, err)
+	}
+	return &consignment, nil
+}
+
+// UpdateStatus: UPDATE consignments SET status = ?, photo = ?, updated_at = NOW() WHERE id = ?.
+// Memakai map supaya photo "" (setelah ditolak) benar-benar disimpan (Updates dengan struct melewati nilai kosong).
+func (r *consignmentRepository) UpdateStatus(ctx context.Context, consignment *entity.Consignment) error {
+	err := conn(ctx, r.db).Model(consignment).Updates(map[string]any{
+		"status": consignment.Status,
+		"photo":  consignment.Photo,
+	}).Error
+	if err != nil {
+		return fmt.Errorf("update consignment %d status: %w", consignment.ID, err)
+	}
+	return nil
+}
+
+// DeleteItems: DELETE FROM items WHERE consignment_id = ? (hapus PERMANEN, Unscoped = tanpa soft delete).
+// Aman karena barang titipan tidak bisa dipinjam, jadi tidak dirujuk borrowing_items.
+func (r *consignmentRepository) DeleteItems(ctx context.Context, consignmentID uint) error {
+	err := conn(ctx, r.db).Unscoped().Where("consignment_id = ?", consignmentID).Delete(&entity.Item{}).Error
+	if err != nil {
+		return fmt.Errorf("delete items of consignment %d: %w", consignmentID, err)
+	}
+	return nil
+}
+
 // paginate menghitung total lalu mengambil satu halaman (terbaru dulu) beserta detailnya.
 func (r *consignmentRepository) paginate(query *gorm.DB, offset, limit int) ([]entity.Consignment, int64, error) {
 	var total int64

@@ -19,4 +19,13 @@ type ConsignmentRepository interface {
 	// FindAll mengambil satu halaman SEMUA penitipan (terbaru dulu) + jumlah seluruhnya.
 	// status kosong = semua status.
 	FindAll(ctx context.Context, status string, offset, limit int) ([]entity.Consignment, int64, error)
+
+	// Dipakai di dalam Transactor.WithinTransaction (ACC / tolak).
+
+	// FindByIDForUpdate mengambil & mengunci satu penitipan (tanpa relasi) sampai transaksi selesai.
+	FindByIDForUpdate(ctx context.Context, id uint) (*entity.Consignment, error)
+	// UpdateStatus menyimpan status & kolom foto.
+	UpdateStatus(ctx context.Context, consignment *entity.Consignment) error
+	// DeleteItems menghapus PERMANEN semua barang titipan milik penitipan ini (dipakai saat ditolak).
+	DeleteItems(ctx context.Context, consignmentID uint) error
 }

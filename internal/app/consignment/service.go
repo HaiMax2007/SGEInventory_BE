@@ -27,17 +27,21 @@ const photoFolder = "consignments"
 
 type consignmentService struct {
 	repo        contracts.ConsignmentRepository
+	logRepo     contracts.UserLogRepository // log ACC/tolak (log submit disimpan repo.Create)
 	lembagaRepo contracts.LembagaRepository
+	tx          contracts.Transactor  // menjalankan beberapa repository dalam satu transaksi (ACC/tolak)
 	storage     contracts.FileStorage // tempat menyimpan foto barang titipan
 }
 
 // NewConsignmentService membuat service penitipan. Repository dioper dari main.go (dependency injection).
 func NewConsignmentService(
 	repo contracts.ConsignmentRepository,
+	logRepo contracts.UserLogRepository,
 	lembagaRepo contracts.LembagaRepository,
+	tx contracts.Transactor,
 	storage contracts.FileStorage,
 ) contracts.ConsignmentService {
-	return &consignmentService{repo: repo, lembagaRepo: lembagaRepo, storage: storage}
+	return &consignmentService{repo: repo, logRepo: logRepo, lembagaRepo: lembagaRepo, tx: tx, storage: storage}
 }
 
 // CreateConsignment menjalankan alur submit penitipan:
@@ -123,6 +127,20 @@ func (s *consignmentService) GetConsignments(ctx context.Context, query dto.Cons
 	return s.toResponses(consignments), page, nil
 }
 
+// GetConsignment: detail satu penitipan (tanpa timeline). Penitipan orang lain dibalas "tidak ditemukan"
+// (bukan 403), supaya user tidak bisa menebak id mana saja yang ada — sama seperti detail peminjaman.
+func (s *consignmentService) GetConsignment(ctx context.Context, id, userID uint, isAdmin bool) (*dto.ConsignmentResponse, error) {
+	consignment, err := s.repo.FindByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if !isAdmin && consignment.UserID != userID {
+		return nil, errx.ErrConsignmentNotFound
+	}
+	res := s.toResponse(consignment)
+	return &res, nil
+}
+
 // findResponse mengambil satu penitipan lalu mengubahnya menjadi response.
 func (s *consignmentService) findResponse(ctx context.Context, id uint) (*dto.ConsignmentResponse, error) {
 	consignment, err := s.repo.FindByID(ctx, id)
@@ -142,9 +160,13 @@ func (s *consignmentService) toResponses(consignments []entity.Consignment) []dt
 }
 
 // toResponse = dto.NewConsignmentResponse + URL foto dari storage yang dipakai (Cloudinary / folder lokal).
+// Penitipan yang ditolak tidak punya foto lagi → photoUrl null.
 func (s *consignmentService) toResponse(c *entity.Consignment) dto.ConsignmentResponse {
 	res := dto.NewConsignmentResponse(c)
-	res.PhotoURL = s.storage.URL(c.Photo)
+	if c.Photo != "" {
+		photoURL := s.storage.URL(c.Photo)
+		res.PhotoURL = &photoURL
+	}
 	return res
 }
 
