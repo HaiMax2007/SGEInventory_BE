@@ -13,6 +13,7 @@ import (
 	"SGEInventory_BE/internal/app/auth"
 	"SGEInventory_BE/internal/app/borrowing"
 	"SGEInventory_BE/internal/app/consignment"
+	"SGEInventory_BE/internal/app/history"
 	"SGEInventory_BE/internal/app/item"
 	"SGEInventory_BE/internal/app/lembaga"
 	"SGEInventory_BE/internal/app/user"
@@ -73,6 +74,7 @@ func main() {
 	consignmentSvc := consignment.NewConsignmentService(consignmentRepo, userLogRepo, lembagaRepo, transactor, fileStorage)
 	lembagaSvc := lembaga.NewLembagaService(lembagaRepo)
 	userLogSvc := userlog.NewUserLogService(userLogRepo)
+	historySvc := history.NewHistoryService(borrowingRepo, consignmentRepo, fileStorage)
 	authSvc := auth.NewAuthService(userRepo, cfg.JWTSecret)
 
 	userHandler := user.NewUserHandler(userSvc)
@@ -81,6 +83,7 @@ func main() {
 	borrowingHandler := borrowing.NewBorrowingHandler(borrowingSvc)
 	consignmentHandler := consignment.NewConsignmentHandler(consignmentSvc)
 	userLogHandler := userlog.NewUserLogHandler(userLogSvc)
+	historyHandler := history.NewHistoryHandler(historySvc)
 	authHandler := auth.NewAuthHandler(authSvc)
 
 	// 5. Buat aplikasi Fiber. Semua error dari handler diubah menjadi JSON oleh ErrorHandler.
@@ -128,6 +131,7 @@ func main() {
 	borrowing.RegisterRoutes(api, borrowingHandler, protected)
 	consignment.RegisterRoutes(api, consignmentHandler, protected)
 	userlog.RegisterRoutes(api, userLogHandler, protected)
+	history.RegisterRoutes(api, historyHandler, protected)
 
 	// 8. Jalankan server
 	log.Fatal(app.Listen(":" + cfg.AppPort))

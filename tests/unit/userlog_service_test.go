@@ -1,6 +1,7 @@
 package unit
 
 import (
+	"slices"
 	"testing"
 
 	"SGEInventory_BE/domain/dto"
@@ -36,6 +37,37 @@ func TestGetLogs(t *testing.T) {
 		mustNoErr(t, err)
 		if len(res) != 1 || res[0].RequestType != enums.RequestTypeBorrowing {
 			t.Errorf("requestType=BORROWING → %+v; want 1 log BORROWING", res)
+		}
+	})
+
+	t.Run("search nama pelaku", func(t *testing.T) {
+		budi := db.addUser("Budi Santoso", enums.RoleUser)
+		db.insertLog(entity.NewUserLog(budi.ID, enums.RequestTypeBorrowing, 9, enums.ActivitySubmitted))
+
+		tests := []struct {
+			name        string
+			search      string
+			requestType string
+			wantActors  []uint // urut terbaru dulu
+		}{
+			{name: "sebagian nama, huruf beda", search: "sANTo", wantActors: []uint{budi.ID}},
+			{name: "cocok beberapa log", search: "rak", wantActors: []uint{raka.ID, raka.ID}},
+			{name: "digabung requestType", search: "raka", requestType: enums.RequestTypeConsignment, wantActors: []uint{raka.ID}},
+			{name: "tidak ada yang cocok", search: "zzz", wantActors: []uint{}},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				q := dto.UserLogListQuery{Page: 1, Limit: 10, Search: tt.search, RequestType: tt.requestType}
+				res, page, err := svc.GetLogs(t.Context(), q)
+				mustNoErr(t, err)
+				got := make([]uint, 0, len(res))
+				for _, r := range res {
+					got = append(got, r.Actor.ID)
+				}
+				if !slices.Equal(got, tt.wantActors) || page.Total != int64(len(tt.wantActors)) {
+					t.Errorf("search=%q requestType=%q → pelaku %v (total %d); want %v", tt.search, tt.requestType, got, page.Total, tt.wantActors)
+				}
+			})
 		}
 	})
 

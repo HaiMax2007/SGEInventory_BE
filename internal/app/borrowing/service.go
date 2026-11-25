@@ -126,15 +126,10 @@ func (s *borrowingService) findResponse(ctx context.Context, id uint) (*dto.Borr
 	return &res, nil
 }
 
-// toResponse = dto.NewBorrowingResponse + URL foto pengembalian dari storage yang dipakai.
+// toResponse = dto.NewBorrowingResponse dengan URL foto pengembalian dari storage yang dipakai.
 // Database hanya menyimpan key (mis. "returns/8f3a...jpg"), storage yang tahu alamat publiknya.
 func (s *borrowingService) toResponse(b *entity.Borrowing) dto.BorrowingResponse {
-	res := dto.NewBorrowingResponse(b)
-	if b.ReturnPhoto != nil {
-		photoURL := s.storage.URL(*b.ReturnPhoto)
-		res.ReturnPhotoURL = &photoURL
-	}
-	return res
+	return dto.NewBorrowingResponse(b, s.storage.URL)
 }
 
 // GetBorrowing mengambil detail pengajuan + timeline (semua log pengajuan ini, termasuk aksi admin).

@@ -24,11 +24,12 @@ func NewUserLogResponse(l *entity.UserLog) UserLogResponse {
 	}
 }
 
-// UserLogListQuery adalah query string GET /api/logs?page=1&limit=10&requestType=BORROWING.
+// UserLogListQuery adalah query string GET /api/logs?page=1&limit=10&requestType=BORROWING&search=raka.
 type UserLogListQuery struct {
 	Page        int
 	Limit       int
 	RequestType string // kosong = semua jenis
+	Search      string // cocokkan sebagian nama lengkap (full_name) pelaku, tanpa beda huruf besar/kecil
 }
 
 // UserLogListItemResponse adalah satu baris di daftar semua log (admin).

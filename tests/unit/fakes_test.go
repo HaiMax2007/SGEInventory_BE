@@ -624,12 +624,18 @@ func (r *fakeUserLogRepo) FindByRequest(_ context.Context, requestType string, r
 	return res, nil
 }
 
-func (r *fakeUserLogRepo) FindAll(_ context.Context, requestType string, offset, limit int) ([]entity.UserLog, int64, error) {
+// FindAll meniru query aslinya: filter jenis + nama pelaku mengandung search (ILIKE = tanpa beda huruf besar/kecil).
+func (r *fakeUserLogRepo) FindAll(_ context.Context, requestType, search string, offset, limit int) ([]entity.UserLog, int64, error) {
 	var rows []entity.UserLog
 	for _, l := range slices.Backward(r.db.logs) { // terbaru dulu
-		if requestType == "" || l.RequestType == requestType {
-			rows = append(rows, r.withUser(l))
+		if requestType != "" && l.RequestType != requestType {
+			continue
 		}
+		u, ok := r.db.users[l.UserID]
+		if search != "" && (!ok || !strings.Contains(strings.ToLower(u.FullName), strings.ToLower(search))) {
+			continue
+		}
+		rows = append(rows, r.withUser(l))
 	}
 	return pageOf(rows, offset, limit), int64(len(rows)), nil
 }

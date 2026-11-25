@@ -20,14 +20,15 @@ func NewUserLogService(repo contracts.UserLogRepository) contracts.UserLogServic
 	return &userLogService{repo: repo}
 }
 
-// GetLogs mengambil semua log untuk admin. Filter requestType kosong = semua jenis pengajuan.
+// GetLogs mengambil semua log untuk admin. Filter requestType kosong = semua jenis pengajuan;
+// search mencocokkan nama lengkap pelaku.
 func (s *userLogService) GetLogs(ctx context.Context, query dto.UserLogListQuery) ([]dto.UserLogListItemResponse, *pagination.Pagination, error) {
 	if query.RequestType != "" && !slices.Contains(enums.RequestTypes, query.RequestType) {
 		return nil, nil, errx.ErrInvalidRequestType
 	}
 
 	page := pagination.New(query.Page, query.Limit)
-	logs, total, err := s.repo.FindAll(ctx, query.RequestType, page.Offset(), page.Limit)
+	logs, total, err := s.repo.FindAll(ctx, query.RequestType, query.Search, page.Offset(), page.Limit)
 	if err != nil {
 		return nil, nil, err
 	}

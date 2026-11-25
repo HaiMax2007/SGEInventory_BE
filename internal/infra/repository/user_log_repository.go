@@ -35,10 +35,18 @@ func (r *userLogRepository) FindByRequest(ctx context.Context, requestType strin
 }
 
 // FindAll mengambil satu halaman semua log, terbaru dulu (kebalikan dari timeline yang urut dari yang lama).
-func (r *userLogRepository) FindAll(ctx context.Context, requestType string, offset, limit int) ([]entity.UserLog, int64, error) {
-	query := conn(ctx, r.db).Model(&entity.UserLog{})
+func (r *userLogRepository) FindAll(ctx context.Context, requestType, search string, offset, limit int) ([]entity.UserLog, int64, error) {
+	db := conn(ctx, r.db)
+	query := db.Model(&entity.UserLog{})
 	if requestType != "" {
 		query = query.Where("request_type = ?", requestType)
+	}
+	if search != "" {
+		// WHERE user_id IN (SELECT id FROM users WHERE full_name ILIKE '%search%')
+		// Subquery (bukan JOIN) supaya Count & Preload tetap sederhana. Unscoped: pelaku yang sudah dihapus
+		// tetap bisa dicari, sama seperti Preload di bawah yang tetap menampilkannya.
+		actors := db.Unscoped().Model(&entity.User{}).Select("id").Where("full_name ILIKE ?", "%"+search+"%")
+		query = query.Where("user_id IN (?)", actors)
 	}
 
 	var total int64

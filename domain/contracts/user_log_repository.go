@@ -18,6 +18,6 @@ type UserLogRepository interface {
 	// FindByRequest mengambil semua log sebuah pengajuan (urut dari yang paling lama) beserta pelakunya.
 	FindByRequest(ctx context.Context, requestType string, requestID uint) ([]entity.UserLog, error)
 	// FindAll mengambil satu halaman SEMUA log (terbaru dulu) beserta pelakunya + jumlah seluruhnya.
-	// requestType kosong = semua jenis pengajuan.
-	FindAll(ctx context.Context, requestType string, offset, limit int) ([]entity.UserLog, int64, error)
+	// requestType kosong = semua jenis pengajuan; search kosong = tanpa pencarian nama pelaku.
+	FindAll(ctx context.Context, requestType, search string, offset, limit int) ([]entity.UserLog, int64, error)
 }

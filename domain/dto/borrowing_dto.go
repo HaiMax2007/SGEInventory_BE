@@ -88,25 +88,32 @@ type ApproveBorrowingResponse struct {
 }
 
 // NewBorrowingResponse mengubah entity.Borrowing menjadi BorrowingResponse (tanpa timeline).
-func NewBorrowingResponse(b *entity.Borrowing) BorrowingResponse {
+// photoURL mengubah key foto di database menjadi alamat publiknya; isinya contracts.FileStorage.URL milik
+// storage yang dipakai (Cloudinary atau folder lokal). ReturnPhotoURL null jika belum ada foto.
+func NewBorrowingResponse(b *entity.Borrowing, photoURL func(key string) string) BorrowingResponse {
 	items := make([]BorrowingItemResponse, 0, len(b.Items))
 	for _, it := range b.Items {
 		items = append(items, BorrowingItemResponse{ItemID: it.ItemID, ItemName: it.ItemName, Quantity: it.Quantity})
 	}
 
+	var returnPhotoURL *string
+	if b.ReturnPhoto != nil {
+		u := photoURL(*b.ReturnPhoto)
+		returnPhotoURL = &u
+	}
+
 	return BorrowingResponse{
-		ID:         b.ID,
-		Status:     b.Status,
-		Purpose:    b.Purpose,
-		PickUpDate: b.PickupDate.Format(DateLayout),
-		ReturnDate: b.ReturnDate.Format(DateLayout),
-		User:       NewUserSummary(b.User),
-		Lembaga:    NewLembagaSummary(b.Lembaga),
-		Items:      items,
-		// ReturnPhotoURL diisi service (borrowingService.toResponse), karena URL-nya bergantung pada
-		// storage yang dipakai (Cloudinary atau folder lokal).
-		CreatedAt: b.CreatedAt,
-		UpdatedAt: b.UpdatedAt,
+		ID:             b.ID,
+		Status:         b.Status,
+		Purpose:        b.Purpose,
+		PickUpDate:     b.PickupDate.Format(DateLayout),
+		ReturnDate:     b.ReturnDate.Format(DateLayout),
+		User:           NewUserSummary(b.User),
+		Lembaga:        NewLembagaSummary(b.Lembaga),
+		Items:          items,
+		ReturnPhotoURL: returnPhotoURL,
+		CreatedAt:      b.CreatedAt,
+		UpdatedAt:      b.UpdatedAt,
 	}
 }
 

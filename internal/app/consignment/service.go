@@ -159,15 +159,10 @@ func (s *consignmentService) toResponses(consignments []entity.Consignment) []dt
 	return res
 }
 
-// toResponse = dto.NewConsignmentResponse + URL foto dari storage yang dipakai (Cloudinary / folder lokal).
+// toResponse = dto.NewConsignmentResponse dengan URL foto dari storage yang dipakai (Cloudinary / folder lokal).
 // Penitipan yang ditolak tidak punya foto lagi → photoUrl null.
 func (s *consignmentService) toResponse(c *entity.Consignment) dto.ConsignmentResponse {
-	res := dto.NewConsignmentResponse(c)
-	if c.Photo != "" {
-		photoURL := s.storage.URL(c.Photo)
-		res.PhotoURL = &photoURL
-	}
-	return res
+	return dto.NewConsignmentResponse(c, s.storage.URL)
 }
 
 // consignmentForm adalah hasil validasi form (tanggal sudah di-parse).

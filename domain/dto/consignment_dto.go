@@ -82,7 +82,7 @@ type ConsignmentResponse struct {
 	StartDate string                    `json:"startDate"`
 	EndDate   string                    `json:"endDate"`
 	Notes     string                    `json:"notes"`
-	PhotoURL  *string                   `json:"photoUrl"` // diisi service dari storage; null jika foto sudah dihapus (ditolak)
+	PhotoURL  *string                   `json:"photoUrl"` // alamat foto dari storage; null jika foto sudah dihapus (ditolak)
 	User      *UserSummary              `json:"user"`     // penitip (pemilik pengajuan)
 	Lembaga   *LembagaSummary           `json:"lembaga"`
 	Items     []ConsignmentItemResponse `json:"items"`
@@ -91,12 +91,20 @@ type ConsignmentResponse struct {
 }
 
 // NewConsignmentResponse mengubah entity.Consignment menjadi ConsignmentResponse.
-// PhotoURL tidak diisi di sini, karena URL-nya bergantung pada storage yang dipakai.
-func NewConsignmentResponse(c *entity.Consignment) ConsignmentResponse {
+// photoURL = contracts.FileStorage.URL milik storage yang dipakai. Penitipan yang ditolak tidak punya foto lagi
+// (Photo "") → photoUrl null.
+func NewConsignmentResponse(c *entity.Consignment, photoURL func(key string) string) ConsignmentResponse {
 	items := make([]ConsignmentItemResponse, 0, len(c.Items))
 	for _, it := range c.Items {
 		items = append(items, ConsignmentItemResponse{ID: it.ID, Name: it.Name, Quantity: it.TotalQuantity})
 	}
+
+	var photo *string
+	if c.Photo != "" {
+		u := photoURL(c.Photo)
+		photo = &u
+	}
+
 	return ConsignmentResponse{
 		ID:        c.ID,
 		Status:    c.Status,
@@ -104,6 +112,7 @@ func NewConsignmentResponse(c *entity.Consignment) ConsignmentResponse {
 		StartDate: c.StartDate.Format(DateLayout),
 		EndDate:   c.EndDate.Format(DateLayout),
 		Notes:     c.Notes,
+		PhotoURL:  photo,
 		User:      NewUserSummary(c.User),
 		Lembaga:   NewLembagaSummary(c.Lembaga),
 		Items:     items,

@@ -1,6 +1,8 @@
 package userlog
 
 import (
+	"strings"
+
 	"github.com/gofiber/fiber/v3"
 
 	"SGEInventory_BE/domain/contracts"
@@ -17,12 +19,13 @@ func NewUserLogHandler(svc contracts.UserLogService) *UserLogHandler {
 	return &UserLogHandler{svc: svc}
 }
 
-// GetAll: GET /api/logs?page=1&limit=10&requestType=BORROWING (admin; semua log, terbaru dulu)
+// GetAll: GET /api/logs?page=1&limit=10&requestType=BORROWING&search=raka (admin; semua log, terbaru dulu)
 func (h *UserLogHandler) GetAll(c fiber.Ctx) error {
 	query := dto.UserLogListQuery{
 		Page:        fiber.Query[int](c, "page", 1),
 		Limit:       fiber.Query[int](c, "limit", 10),
 		RequestType: c.Query("requestType"),
+		Search:      strings.TrimSpace(c.Query("search")),
 	}
 
 	res, page, err := h.svc.GetLogs(c.Context(), query)
