@@ -1,7 +1,11 @@
 package enums
 
 // Status penitipan. Disimpan di kolom consignments.status (VARCHAR + CHECK chk_consignments_status).
-// Tahap 1 hanya membuat PENDING; ACC/tolak admin menyusul di tahap berikutnya.
+//
+//	PENDING ─ACC─→ APPROVED (final)
+//	   └─tolak─→ REJECTED (final; barang titipan & foto dihapus)
+//
+// Alur penitipan selesai di sini: tidak ada form lanjutan, tenggat (end_date) cukup ditampilkan/diatur FE.
 const (
 	ConsignmentPending  = "PENDING"
 	ConsignmentApproved = "APPROVED"
