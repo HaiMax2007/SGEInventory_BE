@@ -111,3 +111,11 @@ func NewConsignmentResponse(c *entity.Consignment) ConsignmentResponse {
 		UpdatedAt: c.UpdatedAt,
 	}
 }
+
+// ConsignmentListQuery adalah query string daftar penitipan:
+// GET /api/consignments/me?page=1&limit=10 dan GET /api/consignments?page=1&limit=10&status=PENDING (admin).
+type ConsignmentListQuery struct {
+	Page   int
+	Limit  int
+	Status string // kosong = semua status (hanya dipakai di daftar admin)
+}

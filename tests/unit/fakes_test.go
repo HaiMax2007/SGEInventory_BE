@@ -760,3 +760,27 @@ func (db *fakeDB) consignmentLogs(consignmentID uint) []entity.UserLog {
 	}
 	return res
 }
+
+func (r *fakeConsignmentRepo) FindByUser(ctx context.Context, userID uint, offset, limit int) ([]entity.Consignment, int64, error) {
+	return r.list(ctx, func(c *entity.Consignment) bool { return c.UserID == userID }, offset, limit)
+}
+
+func (r *fakeConsignmentRepo) FindAll(ctx context.Context, status string, offset, limit int) ([]entity.Consignment, int64, error) {
+	return r.list(ctx, func(c *entity.Consignment) bool { return status == "" || c.Status == status }, offset, limit)
+}
+
+// list meniru ORDER BY id DESC + OFFSET/LIMIT, lengkap dengan detail (FindByID).
+func (r *fakeConsignmentRepo) list(ctx context.Context, match func(*entity.Consignment) bool, offset, limit int) ([]entity.Consignment, int64, error) {
+	var rows []entity.Consignment
+	for _, id := range slices.Backward(sortedIDs(r.db.consignments)) {
+		if !match(r.db.consignments[id]) {
+			continue
+		}
+		c, err := r.FindByID(ctx, id)
+		if err != nil {
+			return nil, 0, err
+		}
+		rows = append(rows, *c)
+	}
+	return pageOf(rows, offset, limit), int64(len(rows)), nil
+}

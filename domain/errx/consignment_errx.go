@@ -4,6 +4,10 @@ import "fmt"
 
 var (
 	ErrConsignmentNotFound = New(KindNotFound, "CONSIGNMENT_NOT_FOUND", "Pengajuan penitipan tidak ditemukan")
+
+	// filter ?status= di daftar penitipan (admin)
+	ErrInvalidConsignmentStatus = New(KindInvalid, "INVALID_CONSIGNMENT_STATUS",
+		"Status harus salah satu dari PENDING, APPROVED, REJECTED")
 )
 
 // Error validasi form penitipan per field (dari tag `validate` di dto.CreateConsignmentRequest).

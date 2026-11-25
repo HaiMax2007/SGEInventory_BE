@@ -3,6 +3,7 @@ package unit
 import (
 	"errors"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 
@@ -271,4 +272,98 @@ func assertNothingSaved(t *testing.T, f *consignmentFixture) {
 		t.Errorf("tersimpan: %d penitipan, %d barang, %d log, %d foto; want semuanya 0",
 			len(f.db.consignments), len(f.db.items), len(f.db.logs), len(f.storage.files))
 	}
+}
+
+// ---------- daftar penitipan ----------
+
+// listFixture: Raka punya 2 penitipan (yang kedua sudah APPROVED), Budi punya 1.
+func newConsignmentListFixture(t *testing.T) (f *consignmentFixture, raka1, raka2, budi1 uint) {
+	t.Helper()
+	f = newConsignmentFixture()
+	budi := f.db.addUser("Budi", enums.RoleUser)
+	submit := func(userID uint, event string) uint {
+		req := validConsignment(t, f.lembaga.ID)
+		req.EventName = event
+		res, err := f.svc.CreateConsignment(t.Context(), userID, req)
+		mustNoErr(t, err)
+		return res.ID
+	}
+	raka1 = submit(f.user.ID, "Pameran 1")
+	raka2 = submit(f.user.ID, "Pameran 2")
+	budi1 = submit(budi.ID, "Bazar Budi")
+	f.db.consignments[raka2].Status = enums.ConsignmentApproved
+	return f, raka1, raka2, budi1
+}
+
+func consignmentIDs(res []dto.ConsignmentResponse) []uint {
+	ids := make([]uint, 0, len(res))
+	for _, r := range res {
+		ids = append(ids, r.ID)
+	}
+	return ids
+}
+
+// User hanya melihat penitipannya sendiri (terbaru dulu), lengkap dengan barang & URL foto.
+func TestGetMyConsignments_OnlyOwn(t *testing.T) {
+	t.Parallel()
+	f, raka1, raka2, _ := newConsignmentListFixture(t)
+
+	res, page, err := f.svc.GetMyConsignments(t.Context(), f.user.ID, dto.ConsignmentListQuery{Page: 1, Limit: 10})
+	mustNoErr(t, err)
+	if got, want := consignmentIDs(res), []uint{raka2, raka1}; !slices.Equal(got, want) {
+		t.Fatalf("GetMyConsignments = id %v; want %v (milik sendiri, terbaru dulu)", got, want)
+	}
+	if page.Total != 2 {
+		t.Errorf("meta total = %d; want 2", page.Total)
+	}
+	first := res[0]
+	if first.Status != enums.ConsignmentApproved || len(first.Items) != 2 || first.User == nil || first.User.ID != f.user.ID ||
+		!strings.HasPrefix(first.PhotoURL, "https://cdn.test/consignments/") {
+		t.Errorf("res[0] = %+v; want APPROVED, 2 barang, user Raka, photoUrl dari storage", first)
+	}
+
+	// User yang belum pernah menitipkan → daftar kosong [] (bukan null).
+	none, _, err := f.svc.GetMyConsignments(t.Context(), 999, dto.ConsignmentListQuery{Page: 1, Limit: 10})
+	mustNoErr(t, err)
+	if none == nil || len(none) != 0 {
+		t.Errorf("tanpa penitipan = %#v; want [] (slice kosong)", none)
+	}
+}
+
+// Admin melihat semua penitipan, bisa difilter status; status tidak dikenal → 400.
+func TestGetConsignments_Admin(t *testing.T) {
+	t.Parallel()
+	f, raka1, raka2, budi1 := newConsignmentListFixture(t)
+
+	tests := []struct {
+		name   string
+		status string
+		want   []uint
+	}{
+		{name: "semua", want: []uint{budi1, raka2, raka1}},
+		{name: "PENDING", status: enums.ConsignmentPending, want: []uint{budi1, raka1}},
+		{name: "APPROVED", status: enums.ConsignmentApproved, want: []uint{raka2}},
+		{name: "REJECTED (kosong)", status: enums.ConsignmentRejected, want: []uint{}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			res, _, err := f.svc.GetConsignments(t.Context(), dto.ConsignmentListQuery{Page: 1, Limit: 10, Status: tt.status})
+			mustNoErr(t, err)
+			if got := consignmentIDs(res); !slices.Equal(got, tt.want) {
+				t.Errorf("GetConsignments(status=%q) = id %v; want %v", tt.status, got, tt.want)
+			}
+		})
+	}
+
+	t.Run("pagination", func(t *testing.T) {
+		res, page, err := f.svc.GetConsignments(t.Context(), dto.ConsignmentListQuery{Page: 2, Limit: 2})
+		mustNoErr(t, err)
+		if got := consignmentIDs(res); !slices.Equal(got, []uint{raka1}) || page.Total != 3 || page.TotalPages != 2 {
+			t.Errorf("halaman 2 = id %v total %d pages %d; want [%d], 3, 2", got, page.Total, page.TotalPages, raka1)
+		}
+	})
+	t.Run("status tidak dikenal → 400", func(t *testing.T) {
+		_, _, err := f.svc.GetConsignments(t.Context(), dto.ConsignmentListQuery{Page: 1, Limit: 10, Status: "pending"})
+		assertDomainError(t, err, "INVALID_CONSIGNMENT_STATUS", errx.KindInvalid)
+	})
 }

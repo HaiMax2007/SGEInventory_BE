@@ -4,6 +4,7 @@ package consignment
 import (
 	"context"
 	"errors"
+	"slices"
 	"strings"
 	"time"
 
@@ -13,6 +14,7 @@ import (
 	"SGEInventory_BE/domain/enums"
 	"SGEInventory_BE/domain/errx"
 	"SGEInventory_BE/helpers/dates"
+	"SGEInventory_BE/helpers/pagination"
 	"SGEInventory_BE/pkg/photo"
 )
 
@@ -93,15 +95,57 @@ func (s *consignmentService) CreateConsignment(ctx context.Context, userID uint,
 	return s.findResponse(ctx, consignment.ID)
 }
 
-// findResponse mengambil satu penitipan lalu mengubahnya menjadi response, termasuk URL foto dari storage.
+// GetMyConsignments: daftar penitipan milik user yang login (terbaru dulu).
+func (s *consignmentService) GetMyConsignments(ctx context.Context, userID uint, query dto.ConsignmentListQuery) ([]dto.ConsignmentResponse, *pagination.Pagination, error) {
+	page := pagination.New(query.Page, query.Limit)
+	consignments, total, err := s.repo.FindByUser(ctx, userID, page.Offset(), page.Limit)
+	if err != nil {
+		return nil, nil, err
+	}
+	page.SetTotal(total)
+	return s.toResponses(consignments), page, nil
+}
+
+// GetConsignments: daftar SEMUA penitipan untuk admin. Filter status kosong = semua status.
+func (s *consignmentService) GetConsignments(ctx context.Context, query dto.ConsignmentListQuery) ([]dto.ConsignmentResponse, *pagination.Pagination, error) {
+	// Status yang tidak dikenal ditolak (400), bukan dibalas daftar kosong,
+	// supaya salah ketik di FE (mis. "pending" huruf kecil) langsung ketahuan.
+	if query.Status != "" && !slices.Contains(enums.ConsignmentStatuses, query.Status) {
+		return nil, nil, errx.ErrInvalidConsignmentStatus
+	}
+
+	page := pagination.New(query.Page, query.Limit)
+	consignments, total, err := s.repo.FindAll(ctx, query.Status, page.Offset(), page.Limit)
+	if err != nil {
+		return nil, nil, err
+	}
+	page.SetTotal(total)
+	return s.toResponses(consignments), page, nil
+}
+
+// findResponse mengambil satu penitipan lalu mengubahnya menjadi response.
 func (s *consignmentService) findResponse(ctx context.Context, id uint) (*dto.ConsignmentResponse, error) {
 	consignment, err := s.repo.FindByID(ctx, id)
 	if err != nil {
 		return nil, err
 	}
-	res := dto.NewConsignmentResponse(consignment)
-	res.PhotoURL = s.storage.URL(consignment.Photo)
+	res := s.toResponse(consignment)
 	return &res, nil
+}
+
+func (s *consignmentService) toResponses(consignments []entity.Consignment) []dto.ConsignmentResponse {
+	res := make([]dto.ConsignmentResponse, 0, len(consignments))
+	for i := range consignments {
+		res = append(res, s.toResponse(&consignments[i]))
+	}
+	return res
+}
+
+// toResponse = dto.NewConsignmentResponse + URL foto dari storage yang dipakai (Cloudinary / folder lokal).
+func (s *consignmentService) toResponse(c *entity.Consignment) dto.ConsignmentResponse {
+	res := dto.NewConsignmentResponse(c)
+	res.PhotoURL = s.storage.URL(c.Photo)
+	return res
 }
 
 // consignmentForm adalah hasil validasi form (tanggal sudah di-parse).

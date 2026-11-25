@@ -61,3 +61,33 @@ func formBindError(err error) error {
 	}
 	return errx.ErrInvalidForm
 }
+
+// GetMine: GET /api/consignments/me?page=1&limit=10 (penitipan milik user yang login, dari token)
+func (h *ConsignmentHandler) GetMine(c fiber.Ctx) error {
+	query := dto.ConsignmentListQuery{
+		Page:  fiber.Query[int](c, "page", 1),
+		Limit: fiber.Query[int](c, "limit", 10),
+	}
+
+	userID := fiber.Locals[uint](c, "userID")
+	res, page, err := h.svc.GetMyConsignments(c.Context(), userID, query)
+	if err != nil {
+		return err
+	}
+	return response.SuccessWithMeta(c, "Daftar pengajuan penitipan berhasil diambil", res, page)
+}
+
+// GetAll: GET /api/consignments?page=1&limit=10&status=PENDING (admin; semua penitipan)
+func (h *ConsignmentHandler) GetAll(c fiber.Ctx) error {
+	query := dto.ConsignmentListQuery{
+		Page:   fiber.Query[int](c, "page", 1),
+		Limit:  fiber.Query[int](c, "limit", 10),
+		Status: c.Query("status"),
+	}
+
+	res, page, err := h.svc.GetConsignments(c.Context(), query)
+	if err != nil {
+		return err
+	}
+	return response.SuccessWithMeta(c, "Daftar semua pengajuan penitipan berhasil diambil", res, page)
+}

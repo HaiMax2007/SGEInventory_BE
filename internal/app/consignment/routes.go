@@ -6,9 +6,12 @@ import (
 	"SGEInventory_BE/internal/middlewares"
 )
 
-// RegisterRoutes mendaftarkan URL penitipan. Semua butuh login; mengajukan penitipan hanya role USER.
-// (ACC/tolak oleh admin menyusul di tahap berikutnya.)
+// RegisterRoutes mendaftarkan URL penitipan. Semua butuh login; mengajukan penitipan hanya role USER,
+// melihat semua penitipan hanya ADMIN. (ACC/tolak oleh admin menyusul di tahap berikutnya.)
+// "/me" didaftarkan sebelum route ber-:id nanti, supaya "me" tidak dianggap sebagai :id.
 func RegisterRoutes(router fiber.Router, handler *ConsignmentHandler, protected fiber.Handler) {
 	consignments := router.Group("/consignments", protected)
 	consignments.Post("/", middlewares.UserOnly, handler.Create)
+	consignments.Get("/", middlewares.AdminOnly, handler.GetAll)
+	consignments.Get("/me", handler.GetMine)
 }

@@ -42,19 +42,50 @@ func (r *consignmentRepository) Create(ctx context.Context, consignment *entity.
 	})
 }
 
-// FindByID: penitip & lembaga tetap dimuat walau sudah dihapus (Unscoped), supaya riwayat tetap lengkap.
 func (r *consignmentRepository) FindByID(ctx context.Context, id uint) (*entity.Consignment, error) {
 	var consignment entity.Consignment
-	err := conn(ctx, r.db).
-		Preload("User", func(db *gorm.DB) *gorm.DB { return db.Unscoped() }).
-		Preload("Lembaga", func(db *gorm.DB) *gorm.DB { return db.Unscoped() }).
-		Preload("Items", func(db *gorm.DB) *gorm.DB { return db.Unscoped().Order("id ASC") }).
-		First(&consignment, id).Error
-	if err != nil {
+	if err := r.withDetails(conn(ctx, r.db)).First(&consignment, id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, errx.ErrConsignmentNotFound
 		}
 		return nil, fmt.Errorf("find consignment %d: %w", id, err)
 	}
 	return &consignment, nil
+}
+
+func (r *consignmentRepository) FindByUser(ctx context.Context, userID uint, offset, limit int) ([]entity.Consignment, int64, error) {
+	query := conn(ctx, r.db).Model(&entity.Consignment{}).Where("user_id = ?", userID)
+	return r.paginate(query, offset, limit)
+}
+
+func (r *consignmentRepository) FindAll(ctx context.Context, status string, offset, limit int) ([]entity.Consignment, int64, error) {
+	query := conn(ctx, r.db).Model(&entity.Consignment{})
+	if status != "" {
+		query = query.Where("status = ?", status)
+	}
+	return r.paginate(query, offset, limit)
+}
+
+// paginate menghitung total lalu mengambil satu halaman (terbaru dulu) beserta detailnya.
+func (r *consignmentRepository) paginate(query *gorm.DB, offset, limit int) ([]entity.Consignment, int64, error) {
+	var total int64
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, fmt.Errorf("count consignments: %w", err)
+	}
+
+	consignments := []entity.Consignment{}
+	err := r.withDetails(query).Order("id DESC").Offset(offset).Limit(limit).Find(&consignments).Error
+	if err != nil {
+		return nil, 0, fmt.Errorf("list consignments: %w", err)
+	}
+	return consignments, total, nil
+}
+
+// withDetails ikut memuat penitip, lembaga & barang titipan. Unscoped: data yang sudah dihapus (soft delete)
+// tetap ditampilkan, supaya riwayat penitipan lama tetap lengkap.
+func (r *consignmentRepository) withDetails(query *gorm.DB) *gorm.DB {
+	return query.
+		Preload("User", func(db *gorm.DB) *gorm.DB { return db.Unscoped() }).
+		Preload("Lembaga", func(db *gorm.DB) *gorm.DB { return db.Unscoped() }).
+		Preload("Items", func(db *gorm.DB) *gorm.DB { return db.Unscoped().Order("id ASC") })
 }
