@@ -48,7 +48,7 @@ domain/                         inti aplikasi, tidak tahu soal HTTP
   enums/                        konstanta role, status & tipe barang, status peminjaman & penitipan, jenis & aktivitas log
   errx/                         error bisnis + Kind-nya (400/401/403/404/409)
 internal/
-  app/<fitur>/                  satu folder per fitur: auth, user, lembaga, item, borrowing, consignment, userlog
+  app/<fitur>/                  satu folder per fitur: auth, user, lembaga, item, borrowing, consignment, userlog, history
     routes.go                   daftar URL → middleware → method handler
     handler.go                  baca request (params, body, query) → panggil service → balas JSON
     service.go                  aturan bisnis (hash password, cek stok, buat token, ...)
@@ -495,7 +495,7 @@ curl -X PATCH localhost:3000/api/consignments/5/reject  -H "Authorization: Beare
 
 | Method | URL | Akses | Keterangan |
 |---|---|---|---|
-| GET | `/api/logs` | Admin | Semua isi `log_users`, terbaru dulu. Query: `page`, `limit`, `requestType` (opsional: `BORROWING` / `CONSIGNMENT`; lainnya → 400) |
+| GET | `/api/logs` | Admin | Semua isi `log_users`, terbaru dulu. Query: `page`, `limit`, `requestType` (opsional: `BORROWING` / `CONSIGNMENT`; lainnya → 400), `search` (opsional: sebagian nama lengkap pelaku, tanpa beda huruf besar/kecil; bisa digabung `requestType`) |
 
 ```json
 {"id":3,"requestType":"BORROWING","requestId":3,"activity":"SUBMITTED",
@@ -504,6 +504,25 @@ curl -X PATCH localhost:3000/api/consignments/5/reject  -H "Authorization: Beare
 
 `requestType` + `requestId` menunjuk pengajuan yang dimaksud; detailnya bisa dibuka lewat
 `GET /api/borrowings/{requestId}` (untuk `BORROWING`).
+
+## API Riwayat Pengajuan User
+
+| Method | URL | Akses | Keterangan |
+|---|---|---|---|
+| GET | `/api/history/me` | User (`UserOnly`) | Gabungan peminjaman + penitipan milik pemilik token, urut `createdAt` **terbaru dulu**. Query: `page`, `limit`. Admin → 403 |
+
+Tiap baris punya `type`; hanya satu dari `borrowing` / `consignment` yang terisi, sisanya `null`. Isinya sama
+dengan `GET /api/borrowings/me` dan `GET /api/consignments/me` (tanpa timeline). `meta.total` = jumlah
+peminjaman + penitipan.
+
+```json
+{"message":"Riwayat pengajuan berhasil diambil","data":[
+  {"type":"CONSIGNMENT","createdAt":"2026-11-26T09:00:00Z","borrowing":null,
+   "consignment":{"id":3,"status":"PENDING","eventName":"Pameran","photoUrl":"https://...", "items":[...], "...":"..."}},
+  {"type":"BORROWING","createdAt":"2026-11-25T08:00:00Z","consignment":null,
+   "borrowing":{"id":5,"status":"APPROVED","purpose":"Rapat","items":[...], "...":"..."}}
+ ],"meta":{"page":1,"limit":10,"total":2,"totalPages":1}}
+```
 
 ## Struktur tabel (AutoMigrate)
 
