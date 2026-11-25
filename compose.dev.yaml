@@ -20,14 +20,15 @@ services:
       # Foto pengembalian: diisi → Cloudinary, kosong → folder uploads/ di proyek
       - CLOUDINARY_URL=${CLOUDINARY_URL}
     ports:
-      - "${PORT}:3000"
+      # API di laptop: http://localhost:${PORT} (mis. 4004)
+      - "${PORT}:${PORT}"
     depends_on:
       db:
         condition: service_healthy
     volumes:
       - .:/app
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/"]
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:${PORT}/"]
       interval: 15s
       timeout: 5s
       retries: 5
@@ -41,7 +42,7 @@ services:
       POSTGRES_USER: ${DB_USER}
       POSTGRES_PASSWORD: ${DB_PASSWORD}
       POSTGRES_DB: ${DB_NAME}
-    # 5433 di host agar tidak bentrok dengan PostgreSQL lokal (5432)
+    # Database di laptop: localhost:${DB_PORT} (mis. 5400), supaya tidak bentrok dengan PostgreSQL lokal (5432)
     ports:
       - "${DB_PORT}:5432"
     volumes:
