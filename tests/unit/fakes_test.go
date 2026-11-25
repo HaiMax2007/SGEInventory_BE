@@ -28,12 +28,13 @@ import (
 // ===================================================================================================
 
 type fakeDB struct {
-	nextID     uint
-	users      map[uint]*entity.User
-	lembagas   map[uint]*entity.Lembaga
-	items      map[uint]*entity.Item
-	borrowings map[uint]*entity.Borrowing
-	logs       []entity.UserLog
+	nextID       uint
+	users        map[uint]*entity.User
+	lembagas     map[uint]*entity.Lembaga
+	items        map[uint]*entity.Item
+	borrowings   map[uint]*entity.Borrowing
+	consignments map[uint]*entity.Consignment
+	logs         []entity.UserLog
 
 	// calls mencatat langkah penting secara berurutan (mis. "lock items", "lock borrowing"),
 	// dipakai untuk menguji urutan penguncian.
@@ -48,10 +49,11 @@ type fakeDB struct {
 
 func newFakeDB() *fakeDB {
 	return &fakeDB{
-		users:      map[uint]*entity.User{},
-		lembagas:   map[uint]*entity.Lembaga{},
-		items:      map[uint]*entity.Item{},
-		borrowings: map[uint]*entity.Borrowing{},
+		users:        map[uint]*entity.User{},
+		lembagas:     map[uint]*entity.Lembaga{},
+		items:        map[uint]*entity.Item{},
+		borrowings:   map[uint]*entity.Borrowing{},
+		consignments: map[uint]*entity.Consignment{},
 	}
 }
 
@@ -67,12 +69,13 @@ func (db *fakeDB) record(call string) {
 // clone membuat salinan seluruh isi tabel (untuk ROLLBACK di fakeTransactor).
 func (db *fakeDB) clone() *fakeDB {
 	return &fakeDB{
-		nextID:     db.nextID,
-		users:      cloneMap(db.users, copyUser),
-		lembagas:   cloneMap(db.lembagas, copyLembaga),
-		items:      cloneMap(db.items, copyItem),
-		borrowings: cloneMap(db.borrowings, copyBorrowing),
-		logs:       slices.Clone(db.logs),
+		nextID:       db.nextID,
+		users:        cloneMap(db.users, copyUser),
+		lembagas:     cloneMap(db.lembagas, copyLembaga),
+		items:        cloneMap(db.items, copyItem),
+		borrowings:   cloneMap(db.borrowings, copyBorrowing),
+		consignments: cloneMap(db.consignments, copyConsignment),
+		logs:         slices.Clone(db.logs),
 	}
 }
 
@@ -83,6 +86,7 @@ func (db *fakeDB) restoreFrom(s *fakeDB) {
 	db.lembagas = s.lembagas
 	db.items = s.items
 	db.borrowings = s.borrowings
+	db.consignments = s.consignments
 	db.logs = s.logs
 }
 
@@ -128,6 +132,15 @@ func (db *fakeDB) addItem(name string, total, available int, lembagaID uint) *en
 	i.AvailableQuantity = available
 	db.items[i.ID] = i
 	return copyItem(i)
+}
+
+// addConsignmentItem membuat barang titipan (CONSIGNMENT) milik penitipan consignmentID.
+func (db *fakeDB) addConsignmentItem(name string, qty int, lembagaID, consignmentID uint) *entity.Item {
+	i := entity.NewConsignmentItem(name, lembagaID, qty)
+	i.ID = db.newID()
+	i.ConsignmentID = &consignmentID
+	db.items[i.ID] = &i
+	return copyItem(&i)
 }
 
 func (db *fakeDB) softDeleteItem(id uint) {
@@ -181,6 +194,12 @@ func copyBorrowing(b *entity.Borrowing) *entity.Borrowing {
 	c := *b
 	c.Items = slices.Clone(b.Items)
 	return &c
+}
+
+func copyConsignment(c *entity.Consignment) *entity.Consignment {
+	cp := *c
+	cp.Items = nil // barang titipan disimpan di tabel items, bukan di sini
+	return &cp
 }
 
 // sortedIDs mengembalikan id dari sebuah "tabel", urut naik.
@@ -401,11 +420,14 @@ func (r *fakeItemRepo) FindByIDs(_ context.Context, ids []uint) ([]entity.Item, 
 	return res, nil
 }
 
-func (r *fakeItemRepo) FindAll(_ context.Context, search string, onlyAvailable bool, offset, limit int) ([]entity.Item, int64, error) {
+func (r *fakeItemRepo) FindAll(_ context.Context, search string, onlyAvailable bool, itemType string, offset, limit int) ([]entity.Item, int64, error) {
 	var rows []entity.Item
 	for _, id := range slices.Backward(sortedIDs(r.db.items)) {
 		i, ok := r.find(id)
 		if !ok || (onlyAvailable && i.AvailableQuantity == 0) {
+			continue
+		}
+		if itemType != "" && i.Type != itemType {
 			continue
 		}
 		if search != "" && !strings.Contains(strings.ToLower(i.Name+i.Description), strings.ToLower(search)) {
@@ -676,4 +698,65 @@ func (s *fakeStorage) Delete(_ context.Context, path string) error {
 // URL sengaja berbeda dari LocalStorage, supaya tes membuktikan returnPhotoUrl dibuat oleh storage.
 func (s *fakeStorage) URL(path string) string {
 	return "https://cdn.test/" + path
+}
+
+// ===================================================================================================
+// fakeConsignmentRepo: memenuhi contracts.ConsignmentRepository
+// ===================================================================================================
+
+type fakeConsignmentRepo struct {
+	db        *fakeDB
+	createErr error // jika diisi, Create gagal (meniru transaksi yang di-ROLLBACK: tidak ada yang tersimpan)
+}
+
+// Create meniru repository asli: penitipan, barang-barangnya (ke tabel items) & log tersimpan bersama.
+func (r *fakeConsignmentRepo) Create(_ context.Context, c *entity.Consignment, activity *entity.UserLog) error {
+	if r.createErr != nil {
+		return r.createErr
+	}
+	c.ID = r.db.newID()
+	c.CreatedAt = time.Now()
+	c.UpdatedAt = c.CreatedAt
+	for i := range c.Items {
+		c.Items[i].ID = r.db.newID()
+		c.Items[i].ConsignmentID = &c.ID
+		r.db.items[c.Items[i].ID] = copyItem(&c.Items[i])
+	}
+	r.db.consignments[c.ID] = copyConsignment(c)
+
+	activity.RequestID = c.ID
+	r.db.insertLog(activity)
+	return nil
+}
+
+// FindByID meniru Preload("User").Preload("Lembaga").Preload("Items").
+func (r *fakeConsignmentRepo) FindByID(_ context.Context, id uint) (*entity.Consignment, error) {
+	stored, ok := r.db.consignments[id]
+	if !ok {
+		return nil, errx.ErrConsignmentNotFound
+	}
+	c := copyConsignment(stored)
+	if u, ok := r.db.users[c.UserID]; ok {
+		c.User = copyUser(u)
+	}
+	if l, ok := r.db.lembagas[c.LembagaID]; ok {
+		c.Lembaga = copyLembaga(l)
+	}
+	for _, itemID := range sortedIDs(r.db.items) {
+		if it := r.db.items[itemID]; it.ConsignmentID != nil && *it.ConsignmentID == id {
+			c.Items = append(c.Items, *copyItem(it))
+		}
+	}
+	return c, nil
+}
+
+// consignmentLogs mengembalikan log sebuah penitipan, urut dari yang paling lama.
+func (db *fakeDB) consignmentLogs(consignmentID uint) []entity.UserLog {
+	var res []entity.UserLog
+	for _, l := range db.logs {
+		if l.RequestType == enums.RequestTypeConsignment && l.RequestID == consignmentID {
+			res = append(res, l)
+		}
+	}
+	return res
 }

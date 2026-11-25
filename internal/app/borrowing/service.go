@@ -10,15 +10,13 @@ import (
 	"SGEInventory_BE/domain/entity"
 	"SGEInventory_BE/domain/enums"
 	"SGEInventory_BE/domain/errx"
+	"SGEInventory_BE/helpers/dates"
 	"SGEInventory_BE/helpers/pagination"
 )
 
 // maxBorrowDays: tanggal kembali paling lambat tanggal ambil + 7 hari.
 // Batas lain (1-20 barang, tujuan 500 karakter) ada di tag `validate` dto.CreateBorrowingRequest.
 const maxBorrowDays = 7
-
-// wib dipakai untuk menentukan "hari ini" (UTC+7). FixedZone tidak butuh data zona waktu di container.
-var wib = time.FixedZone("WIB", 7*60*60)
 
 type borrowingService struct {
 	repo        contracts.BorrowingRepository
@@ -52,7 +50,7 @@ func NewBorrowingService(
 //
 // Stok TIDAK dikurangi di sini; stok berkurang saat admin menyetujui (ACC).
 func (s *borrowingService) CreateBorrowing(ctx context.Context, userID uint, req dto.CreateBorrowingRequest) (*dto.BorrowingResponse, error) {
-	form, err := validateCreateRequest(req, todayWIB())
+	form, err := validateCreateRequest(req, dates.TodayWIB())
 	if err != nil {
 		return nil, err
 	}
@@ -184,6 +182,10 @@ func (s *borrowingService) buildBorrowingItems(ctx context.Context, reqItems []d
 	}
 	byID := make(map[uint]*entity.Item, len(found))
 	for i := range found {
+		// Barang titipan user tidak bisa dipinjam: diperlakukan sama seperti barang yang tidak ada.
+		if found[i].IsConsignment() {
+			continue
+		}
 		byID[found[i].ID] = &found[i]
 	}
 
@@ -257,11 +259,4 @@ func validateCreateRequest(req dto.CreateBorrowingRequest, today time.Time) (*bo
 	}
 
 	return &borrowingForm{purpose: req.Purpose, pickupDate: pickupDate, returnDate: returnDate}, nil
-}
-
-// todayWIB mengembalikan tanggal hari ini menurut WIB, dalam bentuk yang sama dengan time.Parse(dto.DateLayout)
-// (jam 00:00 UTC) supaya bisa dibandingkan langsung.
-func todayWIB() time.Time {
-	now := time.Now().In(wib)
-	return time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
 }

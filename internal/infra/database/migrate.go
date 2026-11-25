@@ -21,6 +21,7 @@ func Migrate(db *gorm.DB) error {
 	if err := db.AutoMigrate(
 		&entity.User{},
 		&entity.Lembaga{},
+		&entity.Consignment{}, // sebelum Item: items.consignment_id merujuk ke consignments
 		&entity.Item{},
 		&entity.Borrowing{},
 		&entity.BorrowingItem{},

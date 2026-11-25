@@ -7,6 +7,7 @@ import (
 
 	"SGEInventory_BE/domain/contracts"
 	"SGEInventory_BE/domain/dto"
+	"SGEInventory_BE/domain/enums"
 	"SGEInventory_BE/domain/errx"
 	"SGEInventory_BE/pkg/response"
 	"SGEInventory_BE/pkg/validator"
@@ -38,30 +39,32 @@ func (h *ItemHandler) Create(c fiber.Ctx) error {
 	return response.Success(c, fiber.StatusCreated, "Barang berhasil ditambahkan", res)
 }
 
-// GetAll: GET /api/items?page=1&limit=10&search=kabel&available=true
+// GetAll: GET /api/items?page=1&limit=10&search=kabel&available=true&type=CONSIGNMENT
+// User hanya melihat barang BORROWABLE; ?type= hanya berlaku untuk admin.
 func (h *ItemHandler) GetAll(c fiber.Ctx) error {
 	query := dto.ItemListQuery{
 		Page:          fiber.Query[int](c, "page", 1),
 		Limit:         fiber.Query[int](c, "limit", 10),
 		Search:        c.Query("search"),
 		OnlyAvailable: c.Query("available") == "true",
+		Type:          c.Query("type"),
 	}
 
-	res, page, err := h.svc.GetItems(c.Context(), query)
+	res, page, err := h.svc.GetItems(c.Context(), query, isAdmin(c))
 	if err != nil {
 		return err
 	}
 	return response.SuccessWithMeta(c, "Daftar barang berhasil diambil", res, page)
 }
 
-// GetByID: GET /api/items/:id
+// GetByID: GET /api/items/:id (barang titipan hanya untuk admin; user → 404)
 func (h *ItemHandler) GetByID(c fiber.Ctx) error {
 	id, err := parseID(c)
 	if err != nil {
 		return err
 	}
 
-	res, err := h.svc.GetItem(c.Context(), id)
+	res, err := h.svc.GetItem(c.Context(), id, isAdmin(c))
 	if err != nil {
 		return err
 	}
@@ -102,6 +105,11 @@ func (h *ItemHandler) Delete(c fiber.Ctx) error {
 		return err
 	}
 	return response.Message(c, fiber.StatusOK, "Barang berhasil dihapus")
+}
+
+// isAdmin bernilai true jika yang login ADMIN (role diisi middlewares.Protected).
+func isAdmin(c fiber.Ctx) bool {
+	return fiber.Locals[string](c, "role") == enums.RoleAdmin
 }
 
 // parseID mengubah :id di URL menjadi angka.

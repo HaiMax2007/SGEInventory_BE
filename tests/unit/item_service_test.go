@@ -158,7 +158,7 @@ func TestDeleteItem(t *testing.T) {
 		f := newItemFixture()
 		it := f.db.addItem("Proyektor", 5, 5, f.lembaga.ID)
 		mustNoErr(t, f.svc.DeleteItem(t.Context(), it.ID))
-		_, err := f.svc.GetItem(t.Context(), it.ID)
+		_, err := f.svc.GetItem(t.Context(), it.ID, true)
 		assertDomainError(t, err, "ITEM_NOT_FOUND", errx.KindNotFound)
 	})
 }
@@ -169,7 +169,7 @@ func TestGetItems_OnlyAvailable(t *testing.T) {
 	f.db.addItem("Proyektor", 5, 0, f.lembaga.ID)
 	f.db.addItem("Kabel", 2, 2, f.lembaga.ID)
 
-	res, page, err := f.svc.GetItems(t.Context(), dto.ItemListQuery{Page: 1, Limit: 10, OnlyAvailable: true})
+	res, page, err := f.svc.GetItems(t.Context(), dto.ItemListQuery{Page: 1, Limit: 10, OnlyAvailable: true}, false)
 	mustNoErr(t, err)
 	if len(res) != 1 || res[0].Name != "Kabel" || res[0].Status != enums.ItemStatusAvailable || page.Total != 1 {
 		t.Errorf("GetItems(available=true) = %+v; want hanya Kabel (TERSEDIA)", res)
@@ -202,5 +202,85 @@ func TestUpdateItem_WithRealBorrowingService(t *testing.T) {
 	}
 	if bf.tx.started != 1 {
 		t.Errorf("transaksi dibuka %d kali; want 1 (edit barang + tolak otomatis dalam satu transaksi)", bf.tx.started)
+	}
+}
+
+// User hanya melihat barang BORROWABLE; admin melihat semua dan bisa memfilter ?type=.
+func TestGetItems_ConsignmentVisibility(t *testing.T) {
+	t.Parallel()
+	f := newItemFixture()
+	proyektor := f.db.addItem("Proyektor", 5, 5, f.lembaga.ID)
+	kursi := f.db.addConsignmentItem("Kursi lipat", 10, f.lembaga.ID, 999)
+
+	ids := func(res []dto.ItemResponse) []uint {
+		out := make([]uint, 0, len(res))
+		for _, r := range res {
+			out = append(out, r.ID)
+		}
+		return out
+	}
+	tests := []struct {
+		name    string
+		typ     string
+		isAdmin bool
+		want    []uint
+	}{
+		{name: "user: hanya barang pinjaman", isAdmin: false, want: []uint{proyektor.ID}},
+		{name: "user: ?type=CONSIGNMENT diabaikan", typ: enums.ItemTypeConsignment, isAdmin: false, want: []uint{proyektor.ID}},
+		{name: "admin: semua", isAdmin: true, want: []uint{kursi.ID, proyektor.ID}},
+		{name: "admin: hanya titipan", typ: enums.ItemTypeConsignment, isAdmin: true, want: []uint{kursi.ID}},
+		{name: "admin: hanya pinjaman", typ: enums.ItemTypeBorrowable, isAdmin: true, want: []uint{proyektor.ID}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			res, _, err := f.svc.GetItems(t.Context(), dto.ItemListQuery{Page: 1, Limit: 10, Type: tt.typ}, tt.isAdmin)
+			mustNoErr(t, err)
+			if got := ids(res); !slices.Equal(got, tt.want) {
+				t.Errorf("GetItems = id %v; want %v", got, tt.want)
+			}
+		})
+	}
+
+	t.Run("admin: tipe tidak dikenal → 400", func(t *testing.T) {
+		_, _, err := f.svc.GetItems(t.Context(), dto.ItemListQuery{Page: 1, Limit: 10, Type: "titipan"}, true)
+		assertDomainError(t, err, "INVALID_ITEM_TYPE", errx.KindInvalid)
+	})
+	t.Run("response memuat type & consignmentId", func(t *testing.T) {
+		res, err := f.svc.GetItem(t.Context(), kursi.ID, true)
+		mustNoErr(t, err)
+		if res.Type != enums.ItemTypeConsignment || res.ConsignmentID == nil || *res.ConsignmentID != 999 {
+			t.Errorf("type %q consignmentId %v; want CONSIGNMENT dan 999", res.Type, res.ConsignmentID)
+		}
+	})
+}
+
+func TestGetItem_ConsignmentHiddenFromUser(t *testing.T) {
+	t.Parallel()
+	f := newItemFixture()
+	kursi := f.db.addConsignmentItem("Kursi lipat", 10, f.lembaga.ID, 999)
+
+	_, err := f.svc.GetItem(t.Context(), kursi.ID, false)
+	assertDomainError(t, err, "ITEM_NOT_FOUND", errx.KindNotFound)
+
+	_, err = f.svc.GetItem(t.Context(), kursi.ID, true)
+	mustNoErr(t, err)
+}
+
+// Barang titipan hanya diurus lewat alur penitipan: edit & hapus lewat /api/items ditolak, data tidak berubah.
+func TestUpdateDeleteItem_ConsignmentReadOnly(t *testing.T) {
+	t.Parallel()
+	f := newItemFixture()
+	kursi := f.db.addConsignmentItem("Kursi lipat", 10, f.lembaga.ID, 999)
+
+	total := 3
+	_, err := f.svc.UpdateItem(t.Context(), kursi.ID, 1, dto.UpdateItemRequest{TotalQuantity: &total})
+	assertDomainError(t, err, "CONSIGNMENT_ITEM_READ_ONLY", errx.KindConflict)
+
+	err = f.svc.DeleteItem(t.Context(), kursi.ID)
+	assertDomainError(t, err, "CONSIGNMENT_ITEM_READ_ONLY", errx.KindConflict)
+
+	stored := f.db.items[kursi.ID]
+	if stored.TotalQuantity != 10 || stored.DeletedAt.Valid {
+		t.Errorf("barang titipan berubah: total %d, dihapus %v; want 10 dan tidak dihapus", stored.TotalQuantity, stored.DeletedAt.Valid)
 	}
 }

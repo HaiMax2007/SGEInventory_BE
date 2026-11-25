@@ -27,16 +27,22 @@ type Item struct {
 	// sisa yang bisa dipinjam: 0 sampai total. GORM hanya membaca satu "check:" per field,
 	// jadi dua aturan (>= 0 dan <= total) digabung dalam satu CHECK.
 	AvailableQuantity int `gorm:"not null;index:idx_items_available;check:chk_items_available_range,available_quantity >= 0 AND available_quantity <= total_quantity"`
-	CreatedAt         time.Time
-	UpdatedAt         time.Time
-	DeletedAt         gorm.DeletedAt `gorm:"index"` // soft delete
+	// Type: BORROWABLE (barang lembaga, dibuat admin, bisa dipinjam) atau CONSIGNMENT (titipan user).
+	// Barang yang sudah ada sebelum kolom ini dibuat otomatis bernilai default BORROWABLE.
+	Type string `gorm:"size:20;not null;default:BORROWABLE;index:idx_items_type;check:chk_items_type,type IN ('BORROWABLE','CONSIGNMENT')"`
+	// ConsignmentID: penitipan asal barang titipan (items.consignment_id → consignments.id); NULL untuk
+	// barang BORROWABLE. CHECK memastikan keduanya selalu cocok: titipan ⇔ consignment_id terisi.
+	ConsignmentID *uint `gorm:"index:idx_items_consignment_id;check:chk_items_consignment,(type = 'CONSIGNMENT') = (consignment_id IS NOT NULL)"`
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+	DeletedAt     gorm.DeletedAt `gorm:"index"` // soft delete
 }
 
 func (Item) TableName() string {
 	return "items"
 }
 
-// NewItem membuat barang baru. Belum ada yang dipinjam, jadi sisa = total.
+// NewItem membuat barang lembaga baru (BORROWABLE, dibuat admin). Belum ada yang dipinjam, jadi sisa = total.
 func NewItem(name, description string, lembagaID uint, totalQuantity int) *Item {
 	return &Item{
 		Name:              name,
@@ -44,7 +50,26 @@ func NewItem(name, description string, lembagaID uint, totalQuantity int) *Item 
 		LembagaID:         lembagaID,
 		TotalQuantity:     totalQuantity,
 		AvailableQuantity: totalQuantity,
+		Type:              enums.ItemTypeBorrowable,
 	}
+}
+
+// NewConsignmentItem membuat barang titipan (CONSIGNMENT) sejumlah qty. Lembaganya sama dengan lembaga
+// penitipan. ConsignmentID diisi GORM saat penitipan disimpan (barang ikut di Consignment.Items).
+// Barang titipan tidak dipinjamkan, jadi sisa = total = jumlah yang dititipkan.
+func NewConsignmentItem(name string, lembagaID uint, qty int) Item {
+	return Item{
+		Name:              name,
+		LembagaID:         lembagaID,
+		TotalQuantity:     qty,
+		AvailableQuantity: qty,
+		Type:              enums.ItemTypeConsignment,
+	}
+}
+
+// IsConsignment bernilai true untuk barang titipan user (bukan barang lembaga yang bisa dipinjam).
+func (i *Item) IsConsignment() bool {
+	return i.Type == enums.ItemTypeConsignment
 }
 
 // BorrowedQuantity adalah jumlah barang yang sedang dipinjam.

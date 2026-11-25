@@ -13,6 +13,9 @@ var (
 
 	// ErrInvalidBody: body bukan JSON yang benar (rusak, kosong, atau Content-Type bukan application/json).
 	ErrInvalidBody = New(KindInvalid, "INVALID_BODY", "Format data tidak valid, kirim body JSON yang benar")
+
+	// ErrInvalidForm: form yang berisi file tidak bisa dibaca (rusak, atau bukan multipart/form-data).
+	ErrInvalidForm = New(KindInvalid, "INVALID_FORM", "Format data tidak valid, kirim form multipart/form-data yang benar")
 )
 
 // NewInvalidFieldType: tipe data sebuah field salah, mis. totalQuantity dikirim "lima" (teks), bukan 5 (angka).

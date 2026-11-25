@@ -2,19 +2,14 @@ package borrowing
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"errors"
 	"fmt"
-	"io"
-	"log"
-	"mime/multipart"
-	"net/http"
 
 	"SGEInventory_BE/domain/dto"
 	"SGEInventory_BE/domain/entity"
 	"SGEInventory_BE/domain/enums"
 	"SGEInventory_BE/domain/errx"
+	"SGEInventory_BE/pkg/photo"
 )
 
 // File ini berisi tahap 3: pengembalian.
@@ -25,18 +20,8 @@ import (
 //
 // Urutan kunci sama dengan approval.go: BARANG dulu (urut id), baru PENGAJUAN.
 
-// maxReturnPhotoBytes: batas ukuran foto pengembalian (5 MB).
-// Fiber juga membatasi seluruh body request (BodyLimit di main.go) sedikit di atas angka ini.
-const maxReturnPhotoBytes = 5 << 20
-
-// photoExtensions: jenis gambar yang diterima → ekstensi file yang disimpan.
-// Jenis dibaca dari ISI file (http.DetectContentType), bukan dari nama file kiriman user,
-// supaya file lain yang diganti namanya menjadi .jpg tetap ditolak.
-var photoExtensions = map[string]string{
-	"image/jpeg": ".jpg",
-	"image/png":  ".png",
-	"image/webp": ".webp",
-}
+// returnPhotoFolder: folder key foto pengembalian, mis. "returns/8f3a...jpg".
+const returnPhotoFolder = "returns"
 
 // SubmitReturn menyimpan foto bukti pengembalian dari user pemilik pengajuan:
 //
@@ -48,7 +33,10 @@ var photoExtensions = map[string]string{
 // File disimpan sebelum transaksi (menulis file tidak bisa di-rollback). Jika transaksi gagal, file itu
 // dihapus lagi supaya tidak ada file yatim.
 func (s *borrowingService) SubmitReturn(ctx context.Context, id, userID uint, req dto.SubmitReturnRequest) (*dto.BorrowingResponse, error) {
-	ext, err := photoExtension(req.Photo)
+	ext, err := photo.Extension(req.Photo)
+	if errors.Is(err, photo.ErrInvalid) {
+		return nil, errx.ErrInvalidReturnPhoto
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -66,11 +54,11 @@ func (s *borrowingService) SubmitReturn(ctx context.Context, id, userID uint, re
 		return nil, errx.NewBorrowingNotReturnable(borrowing.Status)
 	}
 
-	photoPath, err := newPhotoPath(ext)
+	photoPath, err := photo.NewKey(returnPhotoFolder, ext)
 	if err != nil {
 		return nil, err
 	}
-	if err := s.savePhoto(ctx, req.Photo, photoPath); err != nil {
+	if err := photo.Save(ctx, s.storage, req.Photo, photoPath); err != nil {
 		return nil, err
 	}
 
@@ -89,7 +77,7 @@ func (s *borrowingService) SubmitReturn(ctx context.Context, id, userID uint, re
 		return s.logRepo.Create(ctx, activity)
 	})
 	if err != nil {
-		s.deletePhoto(ctx, photoPath)
+		photo.Delete(ctx, s.storage, photoPath)
 		return nil, err
 	}
 
@@ -176,7 +164,7 @@ func (s *borrowingService) RejectReturn(ctx context.Context, id, adminID uint) (
 	}
 
 	if oldPhoto != nil {
-		s.deletePhoto(ctx, *oldPhoto)
+		photo.Delete(ctx, s.storage, *oldPhoto)
 	}
 	return s.findResponse(ctx, id) // tanpa timeline
 }
@@ -202,62 +190,4 @@ func restockItems(lines []entity.BorrowingItem, items []entity.Item) ([]*entity.
 		restocked = append(restocked, item)
 	}
 	return restocked, nil
-}
-
-// photoExtension memastikan foto berukuran 1 byte – 5 MB dan isinya JPG/PNG/WebP, lalu mengembalikan
-// ekstensi file yang akan dipakai. Semua kesalahan foto dibalas errx.ErrInvalidReturnPhoto.
-func photoExtension(photo *multipart.FileHeader) (string, error) {
-	if photo == nil || photo.Size <= 0 || photo.Size > maxReturnPhotoBytes {
-		return "", errx.ErrInvalidReturnPhoto
-	}
-
-	f, err := photo.Open()
-	if err != nil {
-		return "", fmt.Errorf("open uploaded photo: %w", err)
-	}
-	defer f.Close()
-
-	// DetectContentType cukup membaca 512 byte pertama ("tanda tangan" format file).
-	head := make([]byte, 512)
-	n, err := io.ReadFull(f, head)
-	if err != nil && !errors.Is(err, io.ErrUnexpectedEOF) {
-		return "", fmt.Errorf("read uploaded photo: %w", err)
-	}
-
-	ext, ok := photoExtensions[http.DetectContentType(head[:n])]
-	if !ok {
-		return "", errx.ErrInvalidReturnPhoto
-	}
-	return ext, nil
-}
-
-// newPhotoPath membuat path acak, mis. "returns/8f3a9c...e1.jpg" (32 karakter hex dari crypto/rand).
-// Nama acak tidak bisa ditebak, jadi foto orang lain tidak bisa dicari dari URL walaupun /uploads publik.
-func newPhotoPath(ext string) (string, error) {
-	b := make([]byte, 16)
-	if _, err := rand.Read(b); err != nil {
-		return "", fmt.Errorf("generate photo name: %w", err)
-	}
-	return "returns/" + hex.EncodeToString(b) + ext, nil
-}
-
-// savePhoto menyalin isi file unggahan ke storage.
-func (s *borrowingService) savePhoto(ctx context.Context, photo *multipart.FileHeader, photoPath string) error {
-	f, err := photo.Open()
-	if err != nil {
-		return fmt.Errorf("open uploaded photo: %w", err)
-	}
-	defer f.Close()
-	return s.storage.Save(ctx, photoPath, f)
-}
-
-// deletePhoto menghapus file foto. Gagal menghapus tidak membatalkan request (data di database sudah benar,
-// dan file yatim tidak berbahaya), jadi error cukup dicatat di log.
-//
-// context.WithoutCancel: penghapusan tetap dijalankan walaupun client sudah menutup koneksi, karena data di
-// database sudah terlanjur berubah. Batas waktunya diatur oleh storage (mis. 30 detik untuk Cloudinary).
-func (s *borrowingService) deletePhoto(ctx context.Context, photoPath string) {
-	if err := s.storage.Delete(context.WithoutCancel(ctx), photoPath); err != nil {
-		log.Println("delete return photo:", err)
-	}
 }

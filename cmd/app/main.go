@@ -12,6 +12,7 @@ import (
 	"SGEInventory_BE/domain/contracts"
 	"SGEInventory_BE/internal/app/auth"
 	"SGEInventory_BE/internal/app/borrowing"
+	"SGEInventory_BE/internal/app/consignment"
 	"SGEInventory_BE/internal/app/item"
 	"SGEInventory_BE/internal/app/lembaga"
 	"SGEInventory_BE/internal/app/user"
@@ -54,6 +55,7 @@ func main() {
 	itemRepo := repository.NewItemRepository(db)
 	lembagaRepo := repository.NewLembagaRepository(db)
 	borrowingRepo := repository.NewBorrowingRepository(db)
+	consignmentRepo := repository.NewConsignmentRepository(db)
 	userLogRepo := repository.NewUserLogRepository(db)
 	transactor := repository.NewTransactor(db) // menjalankan beberapa repository dalam satu transaksi
 
@@ -68,6 +70,7 @@ func main() {
 	// PENDING saat total barang dikurangi.
 	borrowingSvc := borrowing.NewBorrowingService(borrowingRepo, userLogRepo, itemRepo, lembagaRepo, transactor, fileStorage)
 	itemSvc := item.NewItemService(itemRepo, lembagaRepo, borrowingSvc, transactor)
+	consignmentSvc := consignment.NewConsignmentService(consignmentRepo, lembagaRepo, fileStorage)
 	lembagaSvc := lembaga.NewLembagaService(lembagaRepo)
 	userLogSvc := userlog.NewUserLogService(userLogRepo)
 	authSvc := auth.NewAuthService(userRepo, cfg.JWTSecret)
@@ -76,6 +79,7 @@ func main() {
 	itemHandler := item.NewItemHandler(itemSvc)
 	lembagaHandler := lembaga.NewLembagaHandler(lembagaSvc)
 	borrowingHandler := borrowing.NewBorrowingHandler(borrowingSvc)
+	consignmentHandler := consignment.NewConsignmentHandler(consignmentSvc)
 	userLogHandler := userlog.NewUserLogHandler(userLogSvc)
 	authHandler := auth.NewAuthHandler(authSvc)
 
@@ -122,6 +126,7 @@ func main() {
 	item.RegisterRoutes(api, itemHandler, protected)
 	lembaga.RegisterRoutes(api, lembagaHandler, protected)
 	borrowing.RegisterRoutes(api, borrowingHandler, protected)
+	consignment.RegisterRoutes(api, consignmentHandler, protected)
 	userlog.RegisterRoutes(api, userLogHandler, protected)
 
 	// 8. Jalankan server

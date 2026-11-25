@@ -50,12 +50,14 @@ func itemFieldErrors() map[string]error {
 	}
 }
 
-// ItemListQuery adalah query string GET /api/items?page=1&limit=10&search=kabel&available=true.
+// ItemListQuery adalah query string GET /api/items?page=1&limit=10&search=kabel&available=true&type=CONSIGNMENT.
+// Type hanya berlaku untuk admin (kosong = semua tipe); user selalu hanya melihat BORROWABLE.
 type ItemListQuery struct {
 	Page          int
 	Limit         int
 	Search        string
 	OnlyAvailable bool
+	Type          string
 }
 
 // ItemResponse adalah bentuk data barang yang dikirim ke FE.
@@ -66,7 +68,9 @@ type ItemResponse struct {
 	Lembaga           *LembagaSummary `json:"lembaga"` // {id, name} lembaga asal barang
 	TotalQuantity     int             `json:"totalQuantity"`
 	AvailableQuantity int             `json:"availableQuantity"`
-	Status            string          `json:"status"` // TERSEDIA / HABIS, dihitung dari stok
+	Status            string          `json:"status"`        // TERSEDIA / HABIS, dihitung dari stok
+	Type              string          `json:"type"`          // BORROWABLE (barang lembaga) / CONSIGNMENT (titipan user)
+	ConsignmentID     *uint           `json:"consignmentId"` // id penitipan asal barang titipan; null untuk BORROWABLE
 	CreatedAt         time.Time       `json:"createdAt"`
 	UpdatedAt         time.Time       `json:"updatedAt"`
 }
@@ -81,6 +85,8 @@ func NewItemResponse(i *entity.Item) ItemResponse {
 		TotalQuantity:     i.TotalQuantity,
 		AvailableQuantity: i.AvailableQuantity,
 		Status:            i.Status(),
+		Type:              i.Type,
+		ConsignmentID:     i.ConsignmentID,
 		CreatedAt:         i.CreatedAt,
 		UpdatedAt:         i.UpdatedAt,
 	}

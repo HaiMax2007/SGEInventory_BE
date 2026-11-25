@@ -51,7 +51,7 @@ func (r *itemRepository) FindByIDs(ctx context.Context, ids []uint) ([]entity.It
 }
 
 // FindAll mengembalikan satu halaman barang + jumlah seluruh barang yang cocok dengan filter.
-func (r *itemRepository) FindAll(ctx context.Context, search string, onlyAvailable bool, offset, limit int) ([]entity.Item, int64, error) {
+func (r *itemRepository) FindAll(ctx context.Context, search string, onlyAvailable bool, itemType string, offset, limit int) ([]entity.Item, int64, error) {
 	query := conn(ctx, r.db).Model(&entity.Item{})
 	if search != "" {
 		// ILIKE = LIKE yang tidak membedakan huruf besar/kecil (di Postgres, LIKE membedakannya).
@@ -60,6 +60,9 @@ func (r *itemRepository) FindAll(ctx context.Context, search string, onlyAvailab
 	}
 	if onlyAvailable {
 		query = query.Where("available_quantity > 0")
+	}
+	if itemType != "" {
+		query = query.Where("type = ?", itemType)
 	}
 
 	var total int64

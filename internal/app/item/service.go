@@ -2,10 +2,12 @@ package item
 
 import (
 	"context"
+	"slices"
 
 	"SGEInventory_BE/domain/contracts"
 	"SGEInventory_BE/domain/dto"
 	"SGEInventory_BE/domain/entity"
+	"SGEInventory_BE/domain/enums"
 	"SGEInventory_BE/domain/errx"
 	"SGEInventory_BE/helpers/pagination"
 )
@@ -48,10 +50,19 @@ func (s *itemService) CreateItem(ctx context.Context, req dto.CreateItemRequest)
 	return &res, nil
 }
 
-func (s *itemService) GetItems(ctx context.Context, query dto.ItemListQuery) ([]dto.ItemResponse, *pagination.Pagination, error) {
-	page := pagination.New(query.Page, query.Limit)
+// GetItems: user hanya melihat barang BORROWABLE (titipan user lain tidak boleh terlihat). Admin melihat
+// semua tipe, atau hanya satu tipe lewat ?type= (tipe tidak dikenal → 400, supaya salah ketik langsung ketahuan).
+func (s *itemService) GetItems(ctx context.Context, query dto.ItemListQuery, isAdmin bool) ([]dto.ItemResponse, *pagination.Pagination, error) {
+	itemType := enums.ItemTypeBorrowable
+	if isAdmin {
+		if query.Type != "" && !slices.Contains(enums.ItemTypes, query.Type) {
+			return nil, nil, errx.ErrInvalidItemType
+		}
+		itemType = query.Type // kosong = semua tipe
+	}
 
-	items, total, err := s.repo.FindAll(ctx, query.Search, query.OnlyAvailable, page.Offset(), page.Limit)
+	page := pagination.New(query.Page, query.Limit)
+	items, total, err := s.repo.FindAll(ctx, query.Search, query.OnlyAvailable, itemType, page.Offset(), page.Limit)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -64,10 +75,14 @@ func (s *itemService) GetItems(ctx context.Context, query dto.ItemListQuery) ([]
 	return res, page, nil
 }
 
-func (s *itemService) GetItem(ctx context.Context, id uint) (*dto.ItemResponse, error) {
+// GetItem: barang titipan dibalas "tidak ditemukan" untuk user (hanya admin yang boleh melihatnya).
+func (s *itemService) GetItem(ctx context.Context, id uint, isAdmin bool) (*dto.ItemResponse, error) {
 	item, err := s.repo.FindByID(ctx, id)
 	if err != nil {
 		return nil, err
+	}
+	if !isAdmin && item.IsConsignment() {
+		return nil, errx.ErrItemNotFound
 	}
 
 	res := dto.NewItemResponse(item)
@@ -87,6 +102,10 @@ func (s *itemService) UpdateItem(ctx context.Context, id, adminID uint, req dto.
 		item, err := s.repo.FindByIDForUpdate(ctx, id)
 		if err != nil {
 			return err // errx.ErrItemNotFound
+		}
+		// Barang titipan hanya diurus lewat alur penitipan.
+		if item.IsConsignment() {
+			return errx.ErrConsignmentItemReadOnly
 		}
 
 		// Lembaga asal yang baru dicek dulu (harus ada & belum dihapus).
@@ -129,7 +148,7 @@ func (s *itemService) UpdateItem(ctx context.Context, id, adminID uint, req dto.
 	}
 
 	// Ambil ulang (dengan data lembaga) setelah transaksi selesai, untuk response.
-	return s.GetItem(ctx, id)
+	return s.GetItem(ctx, id, true)
 }
 
 // DeleteItem menghapus barang (soft delete). Baris barang dikunci dulu supaya tidak ada ACC yang
@@ -141,6 +160,9 @@ func (s *itemService) DeleteItem(ctx context.Context, id uint) error {
 			return err
 		}
 
+		if item.IsConsignment() {
+			return errx.ErrConsignmentItemReadOnly
+		}
 		// Barang yang sebagian masih dipinjam tidak boleh dihapus.
 		if item.IsBorrowed() {
 			return errx.ErrItemStillBorrowed

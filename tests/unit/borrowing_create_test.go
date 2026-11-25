@@ -124,3 +124,16 @@ func TestCreateBorrowing_DeletedItemCountsAsNotFound(t *testing.T) {
 	_, err := f.svc.CreateBorrowing(t.Context(), f.user.ID, validRequest(f.lembaga.ID, dto.BorrowingItemRequest{ItemID: it.ID, Quantity: 1}))
 	assertDomainError(t, err, "BORROW_ITEMS_NOT_FOUND", errx.KindNotFound)
 }
+
+// Barang titipan user tidak bisa dipinjam: diperlakukan seperti barang yang tidak ada.
+func TestCreateBorrowing_ConsignmentItemCountsAsNotFound(t *testing.T) {
+	t.Parallel()
+	f := newBorrowingFixture(t)
+	titipan := f.db.addConsignmentItem("Kursi lipat", 10, f.lembaga.ID, 999)
+
+	_, err := f.svc.CreateBorrowing(t.Context(), f.user.ID, validRequest(f.lembaga.ID, dto.BorrowingItemRequest{ItemID: titipan.ID, Quantity: 1}))
+	assertDomainError(t, err, "BORROW_ITEMS_NOT_FOUND", errx.KindNotFound)
+	if len(f.db.borrowings) != 0 {
+		t.Errorf("pengajuan tersimpan %d; want 0", len(f.db.borrowings))
+	}
+}
