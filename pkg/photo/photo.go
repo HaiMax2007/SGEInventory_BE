@@ -1,4 +1,4 @@
-0000// Package photo berisi aturan foto unggahan yang dipakai bersama (foto pengembalian, foto penitipan):
+// Package photo berisi aturan foto unggahan yang dipakai bersama (foto pengembalian, foto penitipan):
 // cek ukuran & jenis dari isi file, nama acak, simpan & hapus lewat contracts.FileStorage.
 package photo
 
