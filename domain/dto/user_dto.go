@@ -86,6 +86,8 @@ func NewUserResponse(u *entity.User) UserResponse {
 type UserSummary struct {
 	ID       uint   `json:"id"`
 	FullName string `json:"fullName"`
+	NIM      string `json:"nim"`
+	Contact  string `json:"contact"` // boleh kosong ("") jika user belum mengisi kontak
 }
 
 // NewUserSummary mengubah entity.User menjadi UserSummary.
@@ -94,5 +96,5 @@ func NewUserSummary(u *entity.User) *UserSummary {
 	if u == nil {
 		return nil
 	}
-	return &UserSummary{ID: u.ID, FullName: u.FullName}
+	return &UserSummary{ID: u.ID, FullName: u.FullName, NIM: u.NIM, Contact: u.Contact}
 }
