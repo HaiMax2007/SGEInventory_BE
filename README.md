@@ -588,7 +588,8 @@ Hanya port 22 (SSH), 80, dan 443 yang dibuka. Port API, database, dan pgAdmin **
 
 ```bash
 git clone https://github.com/HaiMax2007/SGEInventory_BE.git && cd SGEInventory_BE
-cp .env.example .env && nano .env
+nano .env        # file baru; .env.example tidak ikut di repo (ada di .gitignore)
+chmod 600 .env   # hanya pemilik file yang boleh membaca
 ```
 
 `.env` di server tidak boleh di-commit. Isi minimal:
