@@ -127,6 +127,15 @@ func (s *consignmentService) GetConsignments(ctx context.Context, query dto.Cons
 	return s.toResponses(consignments), page, nil
 }
 
+// CountConsignments mengembalikan jumlah semua penitipan untuk admin.
+func (s *consignmentService) CountConsignments(ctx context.Context) (*dto.CountResponse, error) {
+	total, err := s.repo.Count(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return &dto.CountResponse{Total: total}, nil
+}
+
 // GetConsignment: detail satu penitipan (tanpa timeline). Penitipan orang lain dibalas "tidak ditemukan"
 // (bukan 403), supaya user tidak bisa menebak id mana saja yang ada — sama seperti detail peminjaman.
 func (s *consignmentService) GetConsignment(ctx context.Context, id, userID uint, isAdmin bool) (*dto.ConsignmentResponse, error) {

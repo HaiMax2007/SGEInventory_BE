@@ -15,6 +15,8 @@ type BorrowingService interface {
 	GetMyBorrowings(ctx context.Context, userID uint, query dto.BorrowingListQuery) ([]dto.BorrowingResponse, *pagination.Pagination, error)
 	// GetBorrowings mengambil daftar SEMUA pengajuan (khusus admin), bisa difilter status.
 	GetBorrowings(ctx context.Context, query dto.BorrowingListQuery) ([]dto.BorrowingResponse, *pagination.Pagination, error)
+	// CountBorrowings menghitung jumlah SEMUA pengajuan (khusus admin).
+	CountBorrowings(ctx context.Context) (*dto.CountResponse, error)
 	// GetBorrowing mengambil detail + timeline. Hanya pemilik atau admin yang boleh melihat.
 	GetBorrowing(ctx context.Context, id, userID uint, isAdmin bool) (*dto.BorrowingResponse, error)
 

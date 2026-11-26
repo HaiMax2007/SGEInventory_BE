@@ -128,6 +128,30 @@ func TestGetBorrowings_Admin(t *testing.T) {
 	})
 }
 
+// CountBorrowings menghitung SEMUA pengajuan: semua status & semua peminjam.
+func TestCountBorrowings(t *testing.T) {
+	t.Parallel()
+	f := newBorrowingFixture(t)
+
+	res, err := f.svc.CountBorrowings(t.Context())
+	mustNoErr(t, err)
+	if res.Total != 0 {
+		t.Errorf("CountBorrowings (kosong) = %d; want 0", res.Total)
+	}
+
+	other := f.db.addUser("Budi", enums.RoleUser)
+	it := f.db.addItem("Proyektor", 5, 5, f.lembaga.ID)
+	f.db.addBorrowing(f.user.ID, f.lembaga.ID, enums.BorrowingPending, line{it.ID, 1})
+	f.db.addBorrowing(f.user.ID, f.lembaga.ID, enums.BorrowingReturned, line{it.ID, 1})
+	f.db.addBorrowing(other.ID, f.lembaga.ID, enums.BorrowingRejected, line{it.ID, 1})
+
+	res, err = f.svc.CountBorrowings(t.Context())
+	mustNoErr(t, err)
+	if res.Total != 3 {
+		t.Errorf("CountBorrowings = %d; want 3 (semua status, semua user)", res.Total)
+	}
+}
+
 func borrowingIDs(rows []dto.BorrowingResponse) []uint {
 	ids := make([]uint, 0, len(rows))
 	for _, r := range rows {

@@ -105,6 +105,15 @@ func (s *borrowingService) GetBorrowings(ctx context.Context, query dto.Borrowin
 	return s.toBorrowingResponses(borrowings), page, nil
 }
 
+// CountBorrowings mengembalikan jumlah semua pengajuan peminjaman untuk admin.
+func (s *borrowingService) CountBorrowings(ctx context.Context) (*dto.CountResponse, error) {
+	total, err := s.repo.Count(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return &dto.CountResponse{Total: total}, nil
+}
+
 // toBorrowingResponses mengubah daftar entity menjadi daftar response (tanpa timeline).
 func (s *borrowingService) toBorrowingResponses(borrowings []entity.Borrowing) []dto.BorrowingResponse {
 	res := make([]dto.BorrowingResponse, 0, len(borrowings))

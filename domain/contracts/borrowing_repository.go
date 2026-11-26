@@ -19,6 +19,8 @@ type BorrowingRepository interface {
 	// FindAll mengambil satu halaman SEMUA pengajuan (terbaru dulu) + jumlah seluruhnya.
 	// status kosong = semua status.
 	FindAll(ctx context.Context, status string, offset, limit int) ([]entity.Borrowing, int64, error)
+	// Count menghitung jumlah SEMUA pengajuan peminjaman (semua status).
+	Count(ctx context.Context) (int64, error)
 
 	// Method di bawah dipakai di dalam Transactor.WithinTransaction (tahap approval admin).
 

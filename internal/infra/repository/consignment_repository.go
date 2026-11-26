@@ -66,6 +66,15 @@ func (r *consignmentRepository) FindAll(ctx context.Context, status string, offs
 	return r.paginate(query, offset, limit)
 }
 
+// Count: SELECT count(*) FROM consignments.
+func (r *consignmentRepository) Count(ctx context.Context) (int64, error) {
+	var total int64
+	if err := conn(ctx, r.db).Model(&entity.Consignment{}).Count(&total).Error; err != nil {
+		return 0, fmt.Errorf("count consignments: %w", err)
+	}
+	return total, nil
+}
+
 // FindByIDForUpdate: SELECT * FROM consignments WHERE id = ? FOR UPDATE (tanpa relasi).
 // Dua admin yang memproses penitipan yang sama bergantian: yang kedua menunggu, lalu melihat status terbaru.
 func (r *consignmentRepository) FindByIDForUpdate(ctx context.Context, id uint) (*entity.Consignment, error) {

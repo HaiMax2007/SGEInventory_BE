@@ -534,6 +534,10 @@ func (r *fakeBorrowingRepo) FindAll(_ context.Context, status string, offset, li
 	return r.list(func(b *entity.Borrowing) bool { return status == "" || b.Status == status }, offset, limit)
 }
 
+func (r *fakeBorrowingRepo) Count(_ context.Context) (int64, error) {
+	return int64(len(r.db.borrowings)), nil
+}
+
 func (r *fakeBorrowingRepo) FindByIDForUpdate(_ context.Context, id uint) (*entity.Borrowing, error) {
 	if r.db.beforeLockBorrowing != nil {
 		r.db.beforeLockBorrowing()
@@ -790,6 +794,10 @@ func (r *fakeConsignmentRepo) list(ctx context.Context, match func(*entity.Consi
 		rows = append(rows, *c)
 	}
 	return pageOf(rows, offset, limit), int64(len(rows)), nil
+}
+
+func (r *fakeConsignmentRepo) Count(_ context.Context) (int64, error) {
+	return int64(len(r.db.consignments)), nil
 }
 
 func (r *fakeConsignmentRepo) FindByIDForUpdate(_ context.Context, id uint) (*entity.Consignment, error) {

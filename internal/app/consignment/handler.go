@@ -94,6 +94,15 @@ func (h *ConsignmentHandler) GetAll(c fiber.Ctx) error {
 	return response.SuccessWithMeta(c, "Daftar semua pengajuan penitipan berhasil diambil", res, page)
 }
 
+// Count: GET /api/consignments/count (admin; hanya jumlah semua penitipan)
+func (h *ConsignmentHandler) Count(c fiber.Ctx) error {
+	res, err := h.svc.CountConsignments(c.Context())
+	if err != nil {
+		return err
+	}
+	return response.Success(c, fiber.StatusOK, "Total penitipan berhasil diambil", res)
+}
+
 // GetByID: GET /api/consignments/:id (pemilik penitipan atau admin; tanpa timeline)
 func (h *ConsignmentHandler) GetByID(c fiber.Ctx) error {
 	id, err := parseID(c)

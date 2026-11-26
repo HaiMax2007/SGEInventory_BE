@@ -330,6 +330,24 @@ func TestGetMyConsignments_OnlyOwn(t *testing.T) {
 	}
 }
 
+// CountConsignments menghitung SEMUA penitipan: semua status & semua penitip.
+func TestCountConsignments(t *testing.T) {
+	t.Parallel()
+	empty := newConsignmentFixture()
+	res, err := empty.svc.CountConsignments(t.Context())
+	mustNoErr(t, err)
+	if res.Total != 0 {
+		t.Errorf("CountConsignments (kosong) = %d; want 0", res.Total)
+	}
+
+	f, _, _, _ := newConsignmentListFixture(t) // Raka 2 (PENDING + APPROVED), Budi 1
+	res, err = f.svc.CountConsignments(t.Context())
+	mustNoErr(t, err)
+	if res.Total != 3 {
+		t.Errorf("CountConsignments = %d; want 3 (semua status, semua user)", res.Total)
+	}
+}
+
 // Admin melihat semua penitipan, bisa difilter status; status tidak dikenal → 400.
 func TestGetConsignments_Admin(t *testing.T) {
 	t.Parallel()

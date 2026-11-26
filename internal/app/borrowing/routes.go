@@ -8,11 +8,12 @@ import (
 
 // RegisterRoutes mendaftarkan URL peminjaman. Semua butuh login; mengajukan & mengembalikan hanya role USER,
 // melihat semua pengajuan serta ACC/menolak (peminjaman & pengembalian) hanya ADMIN.
-// "/me" didaftarkan sebelum "/:id", kalau tidak "me" akan dianggap sebagai :id.
+// "/count" & "/me" didaftarkan sebelum "/:id", kalau tidak keduanya akan dianggap sebagai :id.
 func RegisterRoutes(router fiber.Router, handler *BorrowingHandler, protected fiber.Handler) {
 	borrowings := router.Group("/borrowings", protected)
 	borrowings.Post("/", middlewares.UserOnly, handler.Create)
 	borrowings.Get("/", middlewares.AdminOnly, handler.GetAll)
+	borrowings.Get("/count", middlewares.AdminOnly, handler.Count)
 	borrowings.Get("/me", handler.GetMine)
 	borrowings.Get("/:id", handler.GetByID)
 

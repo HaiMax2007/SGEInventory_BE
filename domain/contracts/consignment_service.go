@@ -15,6 +15,8 @@ type ConsignmentService interface {
 	GetMyConsignments(ctx context.Context, userID uint, query dto.ConsignmentListQuery) ([]dto.ConsignmentResponse, *pagination.Pagination, error)
 	// GetConsignments: semua penitipan (admin); query.Status tidak dikenal → 400.
 	GetConsignments(ctx context.Context, query dto.ConsignmentListQuery) ([]dto.ConsignmentResponse, *pagination.Pagination, error)
+	// CountConsignments: jumlah SEMUA penitipan (admin).
+	CountConsignments(ctx context.Context) (*dto.CountResponse, error)
 	// GetConsignment: detail satu penitipan; bukan pemilik & bukan admin → 404.
 	GetConsignment(ctx context.Context, id, userID uint, isAdmin bool) (*dto.ConsignmentResponse, error)
 

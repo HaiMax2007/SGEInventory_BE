@@ -19,6 +19,8 @@ type ConsignmentRepository interface {
 	// FindAll mengambil satu halaman SEMUA penitipan (terbaru dulu) + jumlah seluruhnya.
 	// status kosong = semua status.
 	FindAll(ctx context.Context, status string, offset, limit int) ([]entity.Consignment, int64, error)
+	// Count menghitung jumlah SEMUA penitipan (semua status).
+	Count(ctx context.Context) (int64, error)
 
 	// Dipakai di dalam Transactor.WithinTransaction (ACC / tolak).
 

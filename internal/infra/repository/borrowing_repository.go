@@ -70,6 +70,15 @@ func (r *borrowingRepository) FindAll(ctx context.Context, status string, offset
 	return r.paginate(query, offset, limit)
 }
 
+// Count: SELECT count(*) FROM borrowings.
+func (r *borrowingRepository) Count(ctx context.Context) (int64, error) {
+	var total int64
+	if err := conn(ctx, r.db).Model(&entity.Borrowing{}).Count(&total).Error; err != nil {
+		return 0, fmt.Errorf("count borrowings: %w", err)
+	}
+	return total, nil
+}
+
 // paginate menghitung jumlah data yang cocok dengan query, lalu mengambil satu halaman (terbaru dulu)
 // beserta detailnya. Dipakai bersama oleh FindByUser dan FindAll; yang berbeda hanya WHERE-nya.
 func (r *borrowingRepository) paginate(query *gorm.DB, offset, limit int) ([]entity.Borrowing, int64, error) {

@@ -56,6 +56,15 @@ func (h *BorrowingHandler) GetMine(c fiber.Ctx) error {
 	return response.SuccessWithMeta(c, "Daftar pengajuan peminjaman berhasil diambil", res, page)
 }
 
+// Count: GET /api/borrowings/count (admin; hanya jumlah semua pengajuan peminjaman)
+func (h *BorrowingHandler) Count(c fiber.Ctx) error {
+	res, err := h.svc.CountBorrowings(c.Context())
+	if err != nil {
+		return err
+	}
+	return response.Success(c, fiber.StatusOK, "Total peminjaman berhasil diambil", res)
+}
+
 // GetAll: GET /api/borrowings?page=1&limit=10&status=PENDING (admin; semua pengajuan)
 func (h *BorrowingHandler) GetAll(c fiber.Ctx) error {
 	query := dto.BorrowingListQuery{
