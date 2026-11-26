@@ -34,12 +34,16 @@ services:
       POSTGRES_USER: ${DB_USER}
       POSTGRES_PASSWORD: ${DB_PASSWORD}
       POSTGRES_DB: ${DB_NAME}
+      # PGPORT dibaca psql/pg_isready dan skrip start Postgres di dalam container ini
+      PGPORT: ${DB_PORT}
+    # Postgres mendengarkan di port DB_PORT (bukan 5432), sama dengan yang dipakai service api.
+    command: ["postgres", "-p", "${DB_PORT}"]
     # Tidak ada "ports": database hanya bisa dijangkau container lain di jaringan compose ini.
     volumes:
       # Postgres 18 menyimpan data di /var/lib/postgresql/<versi>, jadi yang di-mount folder induknya
       - postgres_data:/var/lib/postgresql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      test: ["CMD-SHELL", "pg_isready -p \"$${PGPORT}\" -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
       interval: 10s
       timeout: 5s
       retries: 10

@@ -600,12 +600,14 @@ chmod 600 .env   # hanya pemilik file yang boleh membaca
 | `JWT_SECRET` | String acak minimal 32 karakter, mis. `openssl rand -hex 32`. Harus beda dari secret development. |
 | `CORS_ORIGINS` | Domain FE dengan `https://`, pisahkan dengan koma. |
 | `CLOUDINARY_URL` | Wajib di production, lihat "Penyimpanan foto". |
+| `DB_PORT` | Port PostgreSQL di dalam Docker, mis. `5400`. API dan database otomatis memakai port yang sama. |
 | `PORT` (opsional) | Port API di `127.0.0.1` server, default 3000. |
 | `PGADMIN_EMAIL`, `PGADMIN_PASSWORD`, `PGADMIN_PORT` (opsional) | Hanya untuk pgAdmin (lihat di bawah); port default 8081. |
 
-`DB_HOST` dan `DB_PORT` tidak perlu diisi: di production API selalu memakai container `db` di port `5432`
-(`DB_PORT=5400` di `.env.example` hanya port database di laptop saat development). Variabel wajib yang kosong
-membuat compose langsung berhenti dengan pesan "... wajib diisi di .env".
+`DB_PORT` (mis. `5400`) wajib diisi: di production PostgreSQL di dalam container `db` mendengarkan di port itu
+(bukan 5432), dan API memakai port yang sama. `DB_HOST` tidak perlu diisi karena selalu `db`. Port database tidak
+dibuka ke luar server. Variabel wajib yang kosong membuat compose langsung berhenti dengan pesan
+"... wajib diisi di .env".
 
 ### 3. Jalankan
 
