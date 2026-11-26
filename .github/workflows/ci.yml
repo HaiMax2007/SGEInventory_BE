@@ -28,3 +28,36 @@ jobs:
 
       - name: Build
         run: go build -v ./cmd/app
+
+  # Deploy ke VPS: hanya setelah test lulus dan hanya untuk push ke main (bukan pull request).
+  # Butuh secret repo: VPS_HOST (IP VPS, bukan domain Cloudflare), VPS_USER, VPS_SSH_KEY (private key),
+  # VPS_PORT (opsional, default 22), VPS_APP_DIR (folder project di VPS). Lihat README bagian "Deploy otomatis".
+  deploy:
+    name: Deploy ke VPS
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    # Dua push berdekatan tidak deploy bersamaan; yang kedua menunggu yang pertama selesai.
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
+    steps:
+      - name: Pull & restart di VPS
+        uses: appleboy/ssh-action@v1.2.0
+        env:
+          VPS_APP_DIR: ${{ secrets.VPS_APP_DIR }}
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT || 22 }}
+          envs: VPS_APP_DIR
+          script: |
+            set -e
+            cd "$VPS_APP_DIR"
+            # --ff-only: berhenti (tidak menimpa) jika ada perubahan lokal di VPS. .env aman karena di-.gitignore.
+            git pull --ff-only origin main
+            # --wait: job gagal jika api/db tidak healthy (memakai healthcheck di compose.prod.yaml).
+            docker compose -f compose.prod.yaml up --build -d --wait --wait-timeout 180
+            # Buang image lama hasil build supaya disk VPS tidak penuh.
+            docker image prune -f

@@ -259,6 +259,7 @@ Contoh data barang:
 |---|---|---|---|
 | POST | `/api/borrowings` | **User (role USER)** | Kirim pengajuan peminjaman (admin → 403) |
 | GET | `/api/borrowings` | Admin | Daftar **semua** pengajuan, terbaru dulu. Query: `page`, `limit`, `status` (opsional, mis. `PENDING`; status tidak dikenal → 400) |
+| GET | `/api/borrowings/count` | Admin | Hanya jumlah **semua** pengajuan peminjaman (semua status): `{"total": 12}` |
 | GET | `/api/borrowings/me` | Login | Daftar pengajuan milik sendiri + status terkini (tanpa `timeline`). Query: `page`, `limit` |
 | GET | `/api/borrowings/:id` | Pemilik / Admin | Detail **satu** pengajuan + `timeline` (riwayat aktivitas). Pengajuan orang lain → 404 |
 | PATCH | `/api/borrowings/:id/approve` | Admin | ACC pengajuan PENDING (tanpa body). Stok berkurang + tolak otomatis pengajuan lain yang tidak tercukupi. Response tanpa `timeline` |
@@ -421,6 +422,7 @@ ditampilkan/diatur FE.
 | POST | `/api/consignments` | **User** | Ajukan penitipan (`multipart/form-data`, karena ada foto) |
 | GET | `/api/consignments/me` | Login | Daftar penitipan milik sendiri (dari token), terbaru dulu. Query: `page`, `limit` |
 | GET | `/api/consignments` | Admin | Semua penitipan, terbaru dulu (berisi `user` penitip). Query: `page`, `limit`, `status` (opsional: `PENDING` / `APPROVED` / `REJECTED`; lainnya → 400 `INVALID_CONSIGNMENT_STATUS`) |
+| GET | `/api/consignments/count` | Admin | Hanya jumlah **semua** penitipan (semua status): `{"total": 5}` |
 | GET | `/api/consignments/:id` | Pemilik / Admin | Detail satu penitipan (tanpa timeline). Milik orang lain → 404 |
 | PATCH | `/api/consignments/:id/approve` | Admin | ACC penitipan `PENDING` (tanpa body) |
 | PATCH | `/api/consignments/:id/reject` | Admin | Tolak penitipan `PENDING` (tanpa body). Barang titipan & fotonya dihapus |
@@ -664,10 +666,58 @@ docker compose -f compose.prod.yaml exec db sh -c \
 
 Foto pengembalian disimpan di Cloudinary, bukan di server, jadi tidak hilang saat container dibuat ulang.
 
-### Update ke versi baru
+### Deploy otomatis (GitHub Actions)
+
+Setiap push ke `main`, workflow [.github/workflows/ci.yml](.github/workflows/ci.yml) menjalankan vet, test, dan
+build. Jika lulus, job `deploy` login SSH ke VPS lalu menjalankan `git pull --ff-only` dan
+`docker compose -f compose.prod.yaml up --build -d --wait`. Pull request hanya dites, tidak di-deploy.
+Hasilnya terlihat di tab **Actions** repo: merah berarti test gagal, `git pull` gagal, atau `api`/`db` tidak
+`healthy` dalam 3 menit (cek `docker compose -f compose.prod.yaml logs --tail=50 api` di VPS).
+
+Setup sekali:
+
+**A. `git pull` di VPS tanpa password (deploy key).** Clone lewat HTTPS + token akan meminta password saat
+`git pull` otomatis, jadi ganti ke deploy key (read-only, tidak kedaluwarsa):
 
 ```bash
-git pull
+ssh-keygen -t ed25519 -C "vps-sgeinventory" -f ~/.ssh/sge_deploy -N ""
+cat ~/.ssh/sge_deploy.pub    # tempel di GitHub: repo > Settings > Deploy keys > Add (JANGAN centang write access)
+cd ~/SGEInventory_BE
+git remote set-url origin git@github.com:HaiMax2007/SGEInventory_BE.git
+git config core.sshCommand "ssh -i ~/.ssh/sge_deploy -o IdentitiesOnly=yes"
+git pull --ff-only origin main   # tes: harus jalan tanpa ditanya apa pun (ketik "yes" sekali jika ditanya fingerprint)
+```
+
+**B. Kunci untuk GitHub Actions login ke VPS** (terpisah dari deploy key):
+
+```bash
+ssh-keygen -t ed25519 -C "github-actions" -f ~/.ssh/gh_actions -N ""
+cat ~/.ssh/gh_actions.pub >> ~/.ssh/authorized_keys
+cat ~/.ssh/gh_actions        # salin SELURUH isi (termasuk baris BEGIN/END) → secret VPS_SSH_KEY
+pwd                          # di folder project → secret VPS_APP_DIR
+```
+
+User VPS ini harus anggota grup `docker` (langkah 1 di atas).
+
+**C. Secret di GitHub:** repo > Settings > Secrets and variables > Actions > New repository secret.
+
+| Secret | Isi |
+|---|---|
+| `VPS_HOST` | IP VPS (**bukan** `api-mtr...`: domain lewat Cloudflare tidak meneruskan SSH) |
+| `VPS_USER` | User SSH di VPS |
+| `VPS_SSH_KEY` | Private key `~/.ssh/gh_actions` |
+| `VPS_PORT` | Port SSH, mis. `22` |
+| `VPS_APP_DIR` | Folder project di VPS, mis. `/home/<user>/SGEInventory_BE` |
+
+Jangan mengedit file yang di-commit langsung di VPS: `git pull --ff-only` akan berhenti dan deploy gagal.
+`.env` aman diubah karena tidak ikut git.
+
+### Update manual (cadangan)
+
+Jika GitHub Actions bermasalah, jalankan di VPS:
+
+```bash
+git pull --ff-only origin main
 docker compose -f compose.prod.yaml up --build -d
 ```
 
