@@ -22,6 +22,7 @@ COPY --from=builder /out/app /app/app
 # Switch to non-root user
 USER app
 
-EXPOSE 3000
+# Hanya dokumentasi: port sebenarnya ditentukan env PORT (diisi compose.prod.yaml dari .env).
+EXPOSE 4004
 
 ENTRYPOINT ["/app/app"]
