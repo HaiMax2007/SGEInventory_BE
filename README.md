@@ -571,23 +571,122 @@ Desain database: [docs/database-design.md](docs/database-design.md).
 
 ## Produksi
 
+Panduan deploy ke VPS (Ubuntu/Debian) dengan `compose.prod.yaml`.
+
+### 1. Siapkan server (sekali saja)
+
 ```bash
+sudo apt update && sudo apt upgrade -y
+curl -fsSL https://get.docker.com | sh
+sudo usermod -aG docker $USER          # logout-login lagi agar berlaku
+sudo ufw allow 22 && sudo ufw allow 80 && sudo ufw allow 443 && sudo ufw enable
+```
+
+Hanya port 22 (SSH), 80, dan 443 yang dibuka. Port API, database, dan pgAdmin **tidak** dibuka ke internet.
+
+### 2. Ambil kode dan isi `.env`
+
+```bash
+git clone https://github.com/HaiMax2007/SGEInventory_BE.git && cd SGEInventory_BE
+cp .env.example .env && nano .env
+```
+
+`.env` di server tidak boleh di-commit. Isi minimal:
+
+| Variabel | Keterangan |
+|---|---|
+| `DB_USER`, `DB_PASSWORD`, `DB_NAME` | Dipakai bersama oleh service `api` dan `db`, jadi otomatis sama. Pakai password kuat. |
+| `JWT_SECRET` | String acak minimal 32 karakter, mis. `openssl rand -hex 32`. Harus beda dari secret development. |
+| `CORS_ORIGINS` | Domain FE dengan `https://`, pisahkan dengan koma. |
+| `CLOUDINARY_URL` | Wajib di production, lihat "Penyimpanan foto". |
+| `PORT` (opsional) | Port API di `127.0.0.1` server, default 3000. |
+| `PGADMIN_EMAIL`, `PGADMIN_PASSWORD`, `PGADMIN_PORT` (opsional) | Hanya untuk pgAdmin (lihat di bawah); port default 8081. |
+
+`DB_HOST` dan `DB_PORT` tidak perlu diisi: di production API selalu memakai container `db` di port `5432`
+(`DB_PORT=5400` di `.env.example` hanya port database di laptop saat development). Variabel wajib yang kosong
+membuat compose langsung berhenti dengan pesan "... wajib diisi di .env".
+
+### 3. Jalankan
+
+```bash
+docker compose -f compose.prod.yaml up --build -d
+docker compose -f compose.prod.yaml logs -f api      # tunggu sampai server jalan
+curl http://127.0.0.1:4004/                          # sesuaikan port; harus membalas "This app is running"
+```
+
+API hanya terbuka di `127.0.0.1:${PORT}` server, belum bisa diakses dari luar sampai langkah 4a atau 4b.
+Port database tidak dibuka ke host sama sekali.
+
+### 4a. Tanpa domain (paling sederhana)
+
+Isi `API_BIND=0.0.0.0` di `.env` server, buka port API di firewall (`sudo ufw allow 4004`), lalu jalankan ulang:
+
+```bash
+docker compose -f compose.prod.yaml up -d
+```
+
+API bisa diakses di `http://IP-VPS:4004`, dan `CORS_ORIGINS` diisi alamat FE apa adanya. Batasannya: koneksi **tanpa HTTPS**,
+jadi token dan password lewat jaringan tanpa enkripsi, dan FE yang di-host di `https://` (Vercel, Netlify, dst.) **tidak
+bisa** memanggil API ini karena diblokir browser (mixed content). Untuk HTTPS tanpa membeli domain, pakai nama
+`IP-DENGAN-STRIP.sslip.io` (mis. `203-0-113-5.sslip.io` untuk IP `203.0.113.5`) di Caddy pada langkah 4b; setelah itu
+`API_BIND` dikembalikan ke default dan port API ditutup lagi di firewall (`sudo ufw delete allow 4004`).
+
+### 4b. Domain + HTTPS (reverse proxy)
+
+Arahkan A record domain API (mis. `api.domainmu.com`) ke IP VPS, lalu pasang reverse proxy yang menangani HTTPS.
+Contoh dengan [Caddy](https://caddyserver.com/docs/install#debian-ubuntu-raspbian) (sertifikat Let's Encrypt otomatis),
+isi `/etc/caddy/Caddyfile`:
+
+```
+api.domainmu.com {
+    reverse_proxy 127.0.0.1:4004
+}
+```
+
+```bash
+sudo systemctl reload caddy
+```
+
+Ganti `4004` dengan nilai `PORT` di `.env` server. Jangan membuat route reverse proxy ke pgAdmin.
+
+### 5. Buat admin pertama
+
+Di production tabel dibuat otomatis (AutoMigrate), tetapi user awal tidak (Seed hanya untuk development).
+Daftar lewat endpoint register (`POST /api/users`, lihat bagian dokumentasi API di atas), lalu naikkan rolenya:
+
+```bash
+docker compose -f compose.prod.yaml exec db sh -c \
+  'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "UPDATE users SET role='"'"'ADMIN'"'"' WHERE email='"'"'emailmu@contoh.com'"'"';"'
+```
+
+Foto pengembalian disimpan di Cloudinary, bukan di server, jadi tidak hilang saat container dibuat ulang.
+
+### Update ke versi baru
+
+```bash
+git pull
 docker compose -f compose.prod.yaml up --build -d
 ```
 
-`compose.prod.yaml` tidak berisi rahasia; semua nilai diambil dari file `.env` di server (jangan di-commit).
-Daftar lengkapnya ada di komentar paling atas `compose.prod.yaml`: `DB_USER`, `DB_PASSWORD`, `DB_NAME`,
-`JWT_SECRET` (string acak minimal 32 karakter, mis. `openssl rand -hex 32`), `CORS_ORIGINS` (domain FE),
-`CLOUDINARY_URL` (lihat "Penyimpanan foto"), serta `API_PORT` (default 3000), `PGADMIN_EMAIL`,
-`PGADMIN_PASSWORD`, `PGADMIN_PORT` (default 8081). Variabel wajib yang kosong membuat compose langsung berhenti
-dengan pesan "... wajib diisi di .env". User/password/nama database dipakai bersama oleh service `api` dan `db`,
-jadi otomatis sama.
+Data tetap aman karena tersimpan di volume `postgres_data`; perubahan struktur tabel diterapkan otomatis oleh
+AutoMigrate saat API start.
 
-API terbuka di port `API_PORT` tanpa HTTPS, jadi pasang reverse proxy/Cloudflare di depannya (lalu ubah port API
-menjadi `127.0.0.1:...`, lihat komentar di file). Port database tidak dibuka ke host.
+### Backup database
 
-**pgAdmin** tidak ikut menyala (profile `tools`) dan tidak bisa dibuka dari internet (port hanya di
-`127.0.0.1` server). Nyalakan saat perlu, akses lewat SSH tunnel, lalu matikan lagi:
+Data hidup di volume Docker `postgres_data`; jika volume hilang, datanya ikut hilang. Backup manual:
+
+```bash
+docker compose -f compose.prod.yaml exec -T db sh -c 'pg_dump -U "$POSTGRES_USER" "$POSTGRES_DB"' \
+  | gzip > backup-$(date +%F).sql.gz
+```
+
+Jadwalkan dengan `crontab -e` (mis. tiap hari jam 02:00) dan salin hasilnya ke tempat lain, bukan hanya di VPS.
+Memulihkan: `gunzip -c backup-YYYY-MM-DD.sql.gz | docker compose -f compose.prod.yaml exec -T db sh -c 'psql -U "$POSTGRES_USER" "$POSTGRES_DB"'`.
+
+### pgAdmin (opsional)
+
+pgAdmin tidak ikut menyala (profile `tools`) dan hanya bisa dibuka lewat `127.0.0.1` server. Isi `PGADMIN_EMAIL` dan
+`PGADMIN_PASSWORD` di `.env`, nyalakan saat perlu, akses lewat SSH tunnel, lalu matikan lagi:
 
 ```bash
 docker compose -f compose.prod.yaml --profile tools up -d pgadmin   # di server
@@ -595,8 +694,4 @@ ssh -L 8081:127.0.0.1:8081 user@ip-server                            # di laptop
 docker compose -f compose.prod.yaml --profile tools stop pgadmin    # di server, setelah selesai
 ```
 
-Di pgAdmin tambahkan server dengan host `db`, port `5432`. Jangan membuat domain/route reverse proxy ke pgAdmin.
-
-Di produksi (`APP_ENV=production`) tabel tetap dibuat otomatis, tetapi user awal tidak; buat admin pertama
-lewat register lalu `UPDATE users SET role='ADMIN' WHERE email='...'`. Foto pengembalian disimpan di Cloudinary,
-bukan di server, jadi tidak hilang saat container dibuat ulang.
+Di pgAdmin tambahkan server dengan host `db`, port `5432`.
