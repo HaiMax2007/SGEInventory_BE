@@ -48,7 +48,7 @@ domain/                         inti aplikasi, tidak tahu soal HTTP
   enums/                        konstanta role, status & tipe barang, status peminjaman & penitipan, jenis & aktivitas log
   errx/                         error bisnis + Kind-nya (400/401/403/404/409)
 internal/
-  app/<fitur>/                  satu folder per fitur: auth, user, lembaga, item, borrowing, consignment, userlog, history
+  app/<fitur>/                  satu folder per fitur: auth, user, lembaga, item, borrowing, consignment, userlog (+ /history/me)
     routes.go                   daftar URL → middleware → method handler
     handler.go                  baca request (params, body, query) → panggil service → balas JSON
     service.go                  aturan bisnis (hash password, cek stok, buat token, ...)
@@ -507,22 +507,24 @@ curl -X PATCH localhost:3000/api/consignments/5/reject  -H "Authorization: Beare
 `requestType` + `requestId` menunjuk pengajuan yang dimaksud; detailnya bisa dibuka lewat
 `GET /api/borrowings/{requestId}` (untuk `BORROWING`).
 
-## API Riwayat Pengajuan User
+## API Riwayat Aktivitas User
 
 | Method | URL | Akses | Keterangan |
 |---|---|---|---|
-| GET | `/api/history/me` | User (`UserOnly`) | Gabungan peminjaman + penitipan milik pemilik token, urut `createdAt` **terbaru dulu**. Query: `page`, `limit`. Admin → 403 |
+| GET | `/api/history/me` | User (`UserOnly`) | Aktivitas yang **dilakukan** pemilik token (isi `log_users` dengan pelaku = user itu), terbaru dulu. Query: `page`, `limit`, `requestType` (opsional: `BORROWING` / `CONSIGNMENT`; lainnya → 400). Admin → 403 |
 
-Tiap baris punya `type`; hanya satu dari `borrowing` / `consignment` yang terisi, sisanya `null`. Isinya sama
-dengan `GET /api/borrowings/me` dan `GET /api/consignments/me` (tanpa timeline). `meta.total` = jumlah
-peminjaman + penitipan.
+Bentuk tiap baris sama dengan `GET /api/logs`. `actor` selalu user itu sendiri; aksi admin pada pengajuannya
+(ACC/tolak) tidak ikut — riwayat lengkap satu peminjaman (termasuk aksi admin) ada di `GET /api/borrowings/:id`.
+Detail peminjaman dibuka lewat `GET /api/borrowings/{requestId}`. Catatan: `GET /api/consignments/:id` saat ini
+masih khusus admin, jadi user belum bisa membuka detail penitipannya dari sini (penitipan miliknya ada di
+`GET /api/consignments/me`).
 
 ```json
-{"message":"Riwayat pengajuan berhasil diambil","data":[
-  {"type":"CONSIGNMENT","createdAt":"2026-11-26T09:00:00Z","borrowing":null,
-   "consignment":{"id":3,"status":"PENDING","eventName":"Pameran","photoUrl":"https://...", "items":[...], "...":"..."}},
-  {"type":"BORROWING","createdAt":"2026-11-25T08:00:00Z","consignment":null,
-   "borrowing":{"id":5,"status":"APPROVED","purpose":"Rapat","items":[...], "...":"..."}}
+{"message":"Riwayat aktivitas berhasil diambil","data":[
+  {"id":9,"requestType":"BORROWING","requestId":5,"activity":"RETURN_SUBMITTED",
+   "actor":{"id":2,"fullName":"Raka","nim":"00000002","contact":""},"createdAt":"2026-11-27T09:00:00Z"},
+  {"id":7,"requestType":"CONSIGNMENT","requestId":3,"activity":"SUBMITTED",
+   "actor":{"id":2,"fullName":"Raka","nim":"00000002","contact":""},"createdAt":"2026-11-26T08:00:00Z"}
  ],"meta":{"page":1,"limit":10,"total":2,"totalPages":1}}
 ```
 
@@ -570,6 +572,8 @@ docker compose -f compose.dev.yaml up --build -d
 (`down -v` juga bisa, tetapi ikut menghapus volume pgAdmin sehingga password server di pgAdmin perlu diisi lagi.)
 
 Desain database: [docs/database-design.md](docs/database-design.md).
+Alur program dari `main.go` sampai database (+ syntax Go): [docs/alur-proyek.md](docs/alur-proyek.md).
+Referensi per folder/file: [docs/panduan-struktur-proyek.md](docs/panduan-struktur-proyek.md).
 
 ## Produksi
 

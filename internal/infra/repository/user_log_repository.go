@@ -48,7 +48,21 @@ func (r *userLogRepository) FindAll(ctx context.Context, requestType, search str
 		actors := db.Unscoped().Model(&entity.User{}).Select("id").Where("full_name ILIKE ?", "%"+search+"%")
 		query = query.Where("user_id IN (?)", actors)
 	}
+	return r.paginate(query, offset, limit)
+}
 
+// FindByUser: log yang pelakunya userID (index idx_log_users_user_id), terbaru dulu.
+func (r *userLogRepository) FindByUser(ctx context.Context, userID uint, requestType string, offset, limit int) ([]entity.UserLog, int64, error) {
+	query := conn(ctx, r.db).Model(&entity.UserLog{}).Where("user_id = ?", userID)
+	if requestType != "" {
+		query = query.Where("request_type = ?", requestType)
+	}
+	return r.paginate(query, offset, limit)
+}
+
+// paginate menghitung total lalu mengambil satu halaman log (terbaru dulu) beserta pelakunya.
+// Dipakai bersama FindAll dan FindByUser; yang berbeda hanya WHERE-nya.
+func (r *userLogRepository) paginate(query *gorm.DB, offset, limit int) ([]entity.UserLog, int64, error) {
 	var total int64
 	if err := query.Count(&total).Error; err != nil {
 		return nil, 0, fmt.Errorf("count logs: %w", err)
