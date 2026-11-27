@@ -88,6 +88,7 @@ type UserSummary struct {
 	FullName string `json:"fullName"`
 	NIM      string `json:"nim"`
 	Contact  string `json:"contact"` // boleh kosong ("") jika user belum mengisi kontak
+	Role     string `json:"role"`    // ADMIN / USER, mis. untuk membedakan aksi admin di timeline & log
 }
 
 // NewUserSummary mengubah entity.User menjadi UserSummary.
@@ -96,5 +97,5 @@ func NewUserSummary(u *entity.User) *UserSummary {
 	if u == nil {
 		return nil
 	}
-	return &UserSummary{ID: u.ID, FullName: u.FullName, NIM: u.NIM, Contact: u.Contact}
+	return &UserSummary{ID: u.ID, FullName: u.FullName, NIM: u.NIM, Contact: u.Contact, Role: u.Role}
 }

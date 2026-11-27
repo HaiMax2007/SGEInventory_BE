@@ -644,17 +644,6 @@ func (r *fakeUserLogRepo) FindAll(_ context.Context, requestType, search string,
 	return pageOf(rows, offset, limit), int64(len(rows)), nil
 }
 
-// FindByUser meniru query aslinya: hanya log dengan pelaku userID (+ filter jenis), terbaru dulu.
-func (r *fakeUserLogRepo) FindByUser(_ context.Context, userID uint, requestType string, offset, limit int) ([]entity.UserLog, int64, error) {
-	var rows []entity.UserLog
-	for _, l := range slices.Backward(r.db.logs) {
-		if l.UserID == userID && (requestType == "" || l.RequestType == requestType) {
-			rows = append(rows, r.withUser(l))
-		}
-	}
-	return pageOf(rows, offset, limit), int64(len(rows)), nil
-}
-
 // ===================================================================================================
 // fakeRejecter: memenuhi contracts.PendingBorrowingRejecter (untuk tes ItemService)
 // ===================================================================================================

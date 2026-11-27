@@ -34,19 +34,3 @@ func (h *UserLogHandler) GetAll(c fiber.Ctx) error {
 	}
 	return response.SuccessWithMeta(c, "Daftar riwayat aktivitas berhasil diambil", res, page)
 }
-
-// GetMine: GET /api/history/me?page=1&limit=10&requestType=BORROWING (user; aktivitas miliknya sendiri, terbaru dulu)
-func (h *UserLogHandler) GetMine(c fiber.Ctx) error {
-	query := dto.UserLogListQuery{
-		Page:        fiber.Query[int](c, "page", 1),
-		Limit:       fiber.Query[int](c, "limit", 10),
-		RequestType: c.Query("requestType"),
-	}
-
-	userID := fiber.Locals[uint](c, "userID") // pemilik token, diisi middlewares.Protected
-	res, page, err := h.svc.GetMyLogs(c.Context(), userID, query)
-	if err != nil {
-		return err
-	}
-	return response.SuccessWithMeta(c, "Riwayat aktivitas berhasil diambil", res, page)
-}
